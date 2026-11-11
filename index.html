@@ -1055,7 +1055,7 @@ function runModel(P, projects) {
 
     // 9) Viajes atraídos por zona (calibrado con el modelo ATU, validación "dejando una zona fuera")
     const trips = tripsModel(E, used, ref, newS1);
-    if (trips) for (const s of projStats) s.trips = trips.perJob * s.direct;
+    if (trips && trips.reliable) for (const s of projStats) s.trips = trips.perJob * s.direct;
 
     return {
         trips,
@@ -1106,7 +1106,9 @@ function tripsModel(E, used, ref, newS1) {
         return { i, name: D.zones[i].name, cod: D.zones[i].cod, obs: D.zones[i].atr, emp: emp[i], pop: pop[i], base, ref: rRef, s1: rS1 };
     });
     const sum = k => zonesOut.reduce((s, z) => s + z[k], 0);
-    return { fit, usePop, perJob: fit.b[1], perHab: usePop ? fit.b[2] : null, n: zi.length,
+    // Solo se usa para proyectar si tiene sentido (más empleo → más viajes) y predice zonas no vistas mejor que el promedio
+    const reliable = fit.b[1] > 0 && (1 - sse / sst) > 0;
+    return { fit, usePop, reliable, perJob: fit.b[1], perHab: usePop ? fit.b[2] : null, n: zi.length,
         cv: { r2: 1 - sse / sst, mdape: median(ape) }, zones: zonesOut,
         totBase: sum("base"), totRef: sum("ref"), totS1: sum("s1") };
 }
@@ -1566,6 +1568,11 @@ window.addEventListener("DOMContentLoaded", () => {
             }
             if (isTrips) {
                 if (!R.trips) { $("legend-body").innerHTML = "<p>El modelo de viajes no está disponible (faltan zonas ATU con datos en Lima Norte).</p>"; return; }
+                if (!R.trips.reliable) {
+                    if (zonesLayer) zonesLayer.visible = false;
+                    $("legend-body").innerHTML = "<p>No se muestran proyecciones de viajes: con estos datos la relación empleo–viajes no es confiable (ver tarjeta 3 en Indicadores).</p>";
+                    return;
+                }
                 return showZones();
             }
             const usedVals = f => { const v = []; for (let j = 0; j < D.n; j++) if (R.used[j]) v.push(f(j)); return v; };
@@ -1675,7 +1682,7 @@ window.addEventListener("DOMContentLoaded", () => {
                         <div><span class="text-slate-500 block">R² fuera de muestra</span><b class="text-sky-800 text-sm">${fmt(cv.r2, 2)}</b> <span class="text-slate-400">regla simple ${fmt(cv.r2Base, 2)}</span></div>
                     </div>
                     ${verdict(cv.mdape < cv.mdapeBase - 0.005, "El modelo predice mejor que usar la mediana del distrito.", "No mejora a la mediana del distrito: el precio depende de factores que no están en los datos.")}
-                    <div class="text-slate-400">Validación cruzada de ${cv.k} grupos: cada precio se predice con un modelo que no lo vio.${D.census ? ` Unión censo–manzanas: ${fmt(D.censusMatch * 100, 0)}%.` : ""}</div>`;
+                    <div class="text-slate-400">Validación cruzada de ${cv.k} grupos: cada precio se predice con un modelo que no lo vio.${D.census ? ` Unión censo–manzanas: ${fmt(D.censusMatch * 100, 0)}% (exacta ${fmt((D.censusExact || 0) * 100, 0)}%, resto por código de manzana sin sufijo).` : ""}</div>`;
             } else $("k-hedcv").textContent = "No disponible (faltan registros de valor de suelo).";
             if (R.trips) {
                 const T = R.trips;
@@ -1686,7 +1693,9 @@ window.addEventListener("DOMContentLoaded", () => {
                         <div><span class="text-slate-500 block">R² dejando una zona fuera</span><b class="text-sky-800 text-sm">${fmt(T.cv.r2, 2)}</b></div>
                     </div>
                     ${verdict(T.cv.r2 > 0.3 && T.perJob > 0, "La relación empleo–viajes es consistente entre zonas.", "La relación es débil o inconsistente: interprétese con cautela.")}
-                    <div class="mt-1">Al ${R.P.year}: <b>${fmt(T.totS1 - T.totBase)}</b> viajes atraídos adicionales en esas zonas (${pct(T.totS1 / T.totBase - 1)}); frente a la referencia: ${T.totS1 - T.totRef >= 0 ? "+" : ""}${fmt(T.totS1 - T.totRef)}.</div>
+                    ${T.reliable
+                        ? `<div class="mt-1">Al ${R.P.year}: <b>${fmt(T.totS1 - T.totBase)}</b> viajes atraídos adicionales en esas zonas (${pct(T.totS1 / T.totBase - 1)}); frente a la referencia: ${T.totS1 - T.totRef >= 0 ? "+" : ""}${fmt(T.totS1 - T.totRef)}.</div>`
+                        : `<div class="mt-1 text-red-700">No se proyectan viajes: con estos datos la relación no es confiable (${T.perJob <= 0 ? "más empleo no implica más viajes" : "no predice zonas no vistas mejor que el promedio"}).</div>`}
                     <div class="text-slate-400">Los viajes de la ATU son salidas de otro modelo (no conteos). Unidades según ese modelo.</div>`;
             } else $("k-trips").textContent = D.zonesError ? `No disponible: ${D.zonesError}` : "No disponible (faltan zonas ATU con datos).";
 
@@ -1904,20 +1913,42 @@ window.addEventListener("DOMContentLoaded", () => {
                 loading("Descargando datos de población por manzana...", 90);
                 try {
                     const c = await fetchAll(URL_CENSO, { where: `UBIGEO IN (${Object.keys(LIMA_NORTE).join(",")})`, outFields: "ObjectId,IDMANZANA,POBLACION,DENSPOB,COD_EST_SO", returnGeometry: false }, "ObjectId");
-                    const byId = new globalThis.Map();
-                    c.features.forEach(f => byId.set(String(f.attributes.IDMANZANA).trim().toUpperCase(), f.attributes));
+                    // Código de manzana INEI: UBIGEO(6) + zona(3) + sufijo zona(2) + manzana(3) + sufijo manzana(1).
+                    // El sufijo final difiere entre capas (CENEC usa letras, el censo números), así que:
+                    //   1) unión exacta por el código completo; 2) si no hay, unión por los primeros 14 caracteres,
+                    //      repartiendo la población entre las manzanas CENEC que comparten esa clave (sin contarla dos veces).
+                    const norm = s => String(s ?? "").trim().toUpperCase();
+                    const byId = new globalThis.Map(), byKey = new globalThis.Map();
+                    c.features.forEach(f => {
+                        const a = f.attributes, id = norm(a.IDMANZANA);
+                        byId.set(id, a);
+                        const k = id.slice(0, 14);
+                        const g = byKey.get(k) || { pop: 0, dens: [], est: [] };
+                        g.pop += Number(a.POBLACION) || 0; g.dens.push(parseFloat(a.DENSPOB) || 0); g.est.push(Number(a.COD_EST_SO) || 0);
+                        byKey.set(k, g);
+                    });
+                    const mode = arr => { const cnt = {}; arr.forEach(v => cnt[v] = (cnt[v] || 0) + 1); return +Object.keys(cnt).sort((p, q) => cnt[q] - cnt[p] || q - p)[0]; };
                     D.census = { pop: new Float64Array(n), dens: new Float64Array(n), est: new Int8Array(n), matched: new Uint8Array(n) };
-                    let m = 0;
+                    let exact = 0, approx = 0;
+                    const pending = new globalThis.Map();           // clave de 14 → manzanas CENEC sin unión exacta
                     for (let j = 0; j < n; j++) {
-                        const a = byId.get(String(D.ids[j]).trim().toUpperCase());
-                        if (!a) continue;
-                        m++; D.census.matched[j] = 1;
-                        D.census.pop[j] = Number(a.POBLACION) || 0;
-                        D.census.dens[j] = parseFloat(a.DENSPOB) || 0;
-                        D.census.est[j] = Number(a.COD_EST_SO) || 0;
+                        const id = norm(D.ids[j]), a = byId.get(id);
+                        if (a) {
+                            exact++; D.census.matched[j] = 1;
+                            D.census.pop[j] = Number(a.POBLACION) || 0; D.census.dens[j] = parseFloat(a.DENSPOB) || 0; D.census.est[j] = Number(a.COD_EST_SO) || 0;
+                        } else if (byKey.has(id.slice(0, 14))) {
+                            const k = id.slice(0, 14);
+                            if (!pending.has(k)) pending.set(k, []);
+                            pending.get(k).push(j);
+                        }
                     }
-                    D.censusMatch = m / n;
-                    console.info(`Censo: ${c.features.length} registros, ${m} manzanas unidas (${(100 * m / n).toFixed(1)}%)`);
+                    pending.forEach((list, k) => {
+                        const g = byKey.get(k), dens = g.dens.reduce((s, v) => s + v, 0) / g.dens.length, est = mode(g.est);
+                        list.forEach(j => { approx++; D.census.matched[j] = 1; D.census.pop[j] = g.pop / list.length; D.census.dens[j] = dens; D.census.est[j] = est; });
+                    });
+                    D.censusMatch = (exact + approx) / n;
+                    D.censusExact = exact / n;
+                    console.info(`Censo: ${c.features.length} registros · unión exacta ${exact}, por clave de 14 caracteres ${approx} (${(100 * (exact + approx) / n).toFixed(1)}% de las manzanas)`);
                 } catch (e) { console.warn("Censo no disponible", e); D.census = null; }
                 // Manzana más cercana a cada registro de valor de suelo (para sus variables de censo y distrito)
                 if (D.soil) {
