@@ -19,6 +19,7 @@
         .flow-arrow { text-align: center; color: #94a3b8; font-size: 14px; line-height: 1; margin: 2px 0; }
         .popup-table td { padding: 2px 6px; font-size: 12px; vertical-align: top; }
         .popup-table td:first-child { color: #64748b; white-space: nowrap; }
+        .proj-input { width: 100%; border: 1px solid #ddd6fe; border-radius: 6px; padding: 2px 6px; background: #fff; }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-800 flex flex-col h-screen overflow-hidden">
@@ -30,13 +31,13 @@
             <div class="min-w-0">
                 <h1 class="font-bold text-base text-slate-900 flex items-center gap-2 truncate">
                     Prototipo LUTI · Lima Norte
-                    <span class="text-[10px] font-semibold px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">Parámetros ilustrativos · sin calibrar</span>
+                    <span class="text-[10px] font-semibold px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 hidden md:inline">Parámetros ilustrativos · sin calibrar</span>
                 </h1>
-                <p class="text-xs text-slate-500 hidden sm:block truncate">Empleos CENEC + Sistema vial propuesto · Modelo logit de localización de empleos</p>
+                <p class="text-xs text-slate-500 hidden sm:block truncate">Empleos CENEC + Sistema vial propuesto + Valor de suelo · Logit de localización y modelo hedónico</p>
             </div>
         </div>
 
-        <div class="hidden xl:flex items-center space-x-2 text-xs">
+        <div class="hidden 2xl:flex items-center space-x-2 text-xs">
             <div class="bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200"><span class="text-slate-500">Escenario: </span><span id="top-scenario" class="font-bold text-rose-600">—</span></div>
             <div class="bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200"><span class="text-slate-500">Empleos base: </span><span id="top-base" class="font-bold text-slate-800">—</span></div>
             <div class="bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200"><span class="text-slate-500">Proyectados: </span><span id="top-proj" class="font-bold text-rose-600">—</span></div>
@@ -62,6 +63,12 @@
     <div class="relative flex-1 flex overflow-hidden">
         <div id="viewDiv" class="w-full h-full bg-slate-100"></div>
 
+        <!-- Aviso de dibujo -->
+        <div id="draw-hint" class="hidden absolute top-4 left-1/2 -translate-x-1/2 z-20 bg-violet-700 text-white text-xs px-4 py-2 rounded-full shadow-lg flex items-center gap-3">
+            <span id="draw-hint-text"></span>
+            <button id="btn-cancel-draw" class="bg-white/20 hover:bg-white/30 px-2 py-0.5 rounded-full">Cancelar</button>
+        </div>
+
         <!-- Overlay de carga -->
         <div id="loading" class="absolute inset-0 z-30 bg-white/70 backdrop-blur-sm flex items-center justify-center">
             <div class="bg-white border border-slate-200 rounded-2xl shadow-xl p-5 w-80 text-center space-y-3">
@@ -73,7 +80,7 @@
 
         <!-- ============ MODAL METODOLOGÍA ============ -->
         <div id="modal-method" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
-            <div class="bg-white border border-slate-200 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden">
+            <div class="bg-white border border-slate-200 rounded-2xl shadow-2xl max-w-5xl w-full max-h-[90vh] flex flex-col overflow-hidden">
                 <div class="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                     <h3 class="font-bold text-sm text-slate-900 flex items-center gap-2"><i class="fa-solid fa-diagram-project text-amber-600"></i> Metodología del prototipo</h3>
                     <button class="btn-close-method text-slate-400 hover:text-slate-700"><i class="fa-solid fa-xmark text-lg"></i></button>
@@ -81,50 +88,55 @@
                 <div class="p-5 overflow-y-auto custom-scrollbar flex-1 text-xs text-slate-600 grid md:grid-cols-2 gap-5">
                     <div>
                         <h4 class="font-bold text-slate-900 mb-2">Diagrama de flujo del sistema</h4>
-                        <div class="flow-box bg-sky-50 border-sky-200"><b>1. Datos (ArcGIS, solo lectura)</b><br>Manzanas CENEC (capa 7) · Sistema vial propuesto (capa 206) · Límites INEI · Valor de suelo</div>
+                        <div class="flow-box bg-sky-50 border-sky-200"><b>1. Datos (ArcGIS, solo lectura)</b><br>Manzanas CENEC (capa 7) · Sistema vial propuesto (capa 206) · Límites INEI · Valor de suelo (puntos con S/ por m²)</div>
                         <div class="flow-arrow">▼</div>
-                        <div class="flow-box"><b>2. Filtro y limpieza</b><br>Solo Lima Norte (8 distritos por UBIGEO). Se excluyen manzanas con EMP_TOTAL mayor al umbral (valores atípicos de carga).</div>
+                        <div class="flow-box"><b>2. Filtro y limpieza</b><br>Solo Lima Norte (8 distritos por UBIGEO). Se excluyen manzanas con EMP_TOTAL mayor al umbral (valores atípicos).</div>
                         <div class="flow-arrow">▼</div>
-                        <div class="flow-box"><b>3. Accesibilidad vial</b><br>Distancia (m) del centroide de cada manzana a la vía más cercana de las clases activas en el escenario.</div>
+                        <div class="flow-box"><b>3. Variables espaciales</b><br>Distancia de cada manzana a la vía más cercana · Empleos a ≤ 1 km de cada manzana.</div>
                         <div class="flow-arrow">▼</div>
-                        <div class="flow-box bg-amber-50 border-amber-200"><b>4. Parámetros del usuario (supuestos)</b><br>Año base, horizonte, tasa de crecimiento, β (sensibilidad a la distancia), α (aglomeración), umbral.</div>
+                        <div class="flow-box bg-emerald-50 border-emerald-200"><b>4. Modelo de valor de suelo (estimado con datos)</b><br>Regresión hedónica sobre los precios observados: los coeficientes salen de los datos, no se eligen.</div>
                         <div class="flow-arrow">▼</div>
-                        <div class="flow-box"><b>5. Modelo</b><br>Crecimiento total → reparto logit por manzana en dos versiones: <i>tendencial</i> (sin efecto vial) y <i>escenario</i> (con efecto vial).</div>
+                        <div class="flow-box bg-amber-50 border-amber-200"><b>5. Supuestos del usuario</b><br>Escenario vial, horizonte, tasa g, α, β, γ, umbral y los <b>proyectos</b> dibujados en el mapa (polos de empleo, densificaciones, vías nuevas).</div>
                         <div class="flow-arrow">▼</div>
-                        <div class="flow-box bg-rose-50 border-rose-200"><b>6. Resultados (solo en pantalla)</b><br>Mapa de calor · diferencia vs tendencial · indicadores · gráficos · CSV descargable.</div>
+                        <div class="flow-box"><b>6. Modelo de localización</b><br>Crecimiento total → reparto logit por manzana. Se calcula la referencia (tendencial o sin proyectos) y el escenario con proyectos.</div>
+                        <div class="flow-arrow">▼</div>
+                        <div class="flow-box bg-rose-50 border-rose-200"><b>7. Resultados (solo en pantalla)</b><br>Mapas de empleo y valor de suelo · diferencias vs referencia · indicadores por proyecto · CSV descargable.</div>
                     </div>
                     <div class="space-y-4">
                         <div>
-                            <h4 class="font-bold text-slate-900 mb-1">Fórmulas que ejecuta el código</h4>
-                            <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2 font-mono text-[11px] text-slate-800">
+                            <h4 class="font-bold text-slate-900 mb-1">A. Localización de empleos (logit)</h4>
+                            <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-1.5 font-mono text-[11px] text-slate-800">
                                 <div>ΔE = E<sub>base</sub> · [(1 + g)<sup>(T − T<sub>0</sub>)</sup> − 1]</div>
-                                <div>U<sub>j</sub> = α · ln(1 + E<sub>j</sub>) − β · d<sub>j</sub> (d en km)</div>
+                                <div>U<sub>j</sub> = α·ln(1 + E<sub>j</sub>) + γ·ln(1 + J<sub>j</sub>) − β·d<sub>j</sub></div>
                                 <div>P<sub>j</sub> = exp(U<sub>j</sub>) / Σ<sub>k</sub> exp(U<sub>k</sub>)</div>
-                                <div>Nuevos<sub>j</sub> = ΔE · P<sub>j</sub> ; Proyectado<sub>j</sub> = E<sub>j</sub> + Nuevos<sub>j</sub></div>
-                                <div>Tendencial: igual, con β = 0</div>
-                                <div>Diferencia<sub>j</sub> = Nuevos<sub>j</sub><sup>escenario</sup> − Nuevos<sub>j</sub><sup>tendencial</sup></div>
+                                <div>Nuevos<sub>j</sub> = ΔE · P<sub>j</sub> + Directos<sub>j</sub></div>
                             </div>
-                            <p class="mt-1">E<sub>j</sub>: empleos de la manzana (EMP_TOTAL). d<sub>j</sub>: distancia a la vía más cercana. Con α = 1 y β = 0, los empleos nuevos se reparten en proporción a los existentes. Con β &gt; 0, las manzanas cercanas a las vías reciben una mayor proporción.</p>
+                            <p class="mt-1">E<sub>j</sub>: empleos de la manzana. J<sub>j</sub>: empleos a ≤ 1 km (aglomeración). d<sub>j</sub>: distancia en km a la vía activa más cercana. Directos<sub>j</sub>: empleos que crea un proyecto en esa manzana.</p>
                         </div>
                         <div>
-                            <h4 class="font-bold text-slate-900 mb-1">Base teórica</h4>
-                            <p>Modelo logit multinomial de elección de localización (McFadden; Ben-Akiva &amp; Lerman, 1985), con la lógica de interacción uso de suelo–transporte de los modelos LUTI (Lowry, 1964; Hansen, 1959; Waddell, 2002 – UrbanSim).</p>
+                            <h4 class="font-bold text-slate-900 mb-1">B. Valor de suelo (regresión hedónica, Rosen 1974)</h4>
+                            <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 font-mono text-[11px] text-slate-800">ln(S/ por m²) = b<sub>0</sub> + b<sub>1</sub>·d<sub>km</sub> + b<sub>2</sub>·ln(1 + J)</div>
+                            <p class="mt-1">Se estima por mínimos cuadrados con los registros reales de la capa VALOR_DE_SUELO (se descarta el 1% más alto y el 1% más bajo). d: distancia a cualquier vía del sistema propuesto. Para el horizonte se recalculan d (si hay vías nuevas) y J (con los empleos proyectados).</p>
                         </div>
                         <div>
-                            <h4 class="font-bold text-slate-900 mb-1">Supuestos</h4>
+                            <h4 class="font-bold text-slate-900 mb-1">C. Proyectos</h4>
                             <ul class="list-disc pl-4 space-y-0.5">
-                                <li>Los valores de g, α y β son <b>ilustrativos</b>: no están calibrados con datos históricos de Lima.</li>
-                                <li>El año base es un dato que ingresa el usuario. Conviene confirmar el año real del censo CENEC.</li>
-                                <li>La distancia es en línea recta (no por la red) desde el centroide de la manzana.</li>
+                                <li><b>Polo de empleo:</b> sus empleos se asignan a la manzana más cercana y aumentan la atracción de su entorno (γ).</li>
+                                <li><b>Densificación:</b> empleos directos = m² adicionales ÷ m² por empleo, repartidos en partes iguales entre las manzanas del radio.</li>
+                                <li><b>Vía nueva:</b> se agrega a la red; cambia la distancia d de las manzanas cercanas (empleos) y el valor de suelo.</li>
+                                <li>Los empleos directos se suman al crecimiento ΔE (supuesto).</li>
                             </ul>
                         </div>
                         <div>
-                            <h4 class="font-bold text-slate-900 mb-1">Limitaciones</h4>
+                            <h4 class="font-bold text-slate-900 mb-1">Supuestos y limitaciones</h4>
                             <ul class="list-disc pl-4 space-y-0.5">
-                                <li>La capa vial es el sistema <b>propuesto</b> y probablemente incluye vías existentes. Sin la red actual, el modelo no aísla solo el efecto de las vías nuevas.</li>
-                                <li>No modela hogares, precios ni oferta de edificación (UrbanSim completo sí lo hace).</li>
-                                <li>Los resultados son escenarios ("qué pasaría si"), no predicciones.</li>
+                                <li>g, α, β y γ son <b>ilustrativos</b>: no están calibrados con datos históricos de Lima.</li>
+                                <li>Distancias en línea recta desde el centroide de la manzana. J se calcula en una grilla de 250 m.</li>
+                                <li>La capa vial es el sistema <b>propuesto</b> y probablemente incluye vías existentes.</li>
+                                <li>El modelo hedónico usa pocos registros y dos variables: es una aproximación. Ver su R² en Indicadores.</li>
+                                <li>No modela hogares, oferta inmobiliaria ni congestión (UrbanSim completo sí). Los resultados son escenarios, no predicciones.</li>
                             </ul>
+                            <p class="mt-1 text-slate-500">Referencias: McFadden; Ben-Akiva &amp; Lerman (1985); Lowry (1964); Hansen (1959); Rosen (1974); Waddell (2002, UrbanSim).</p>
                         </div>
                     </div>
                 </div>
@@ -135,9 +147,9 @@
         </div>
 
         <!-- ============ PANEL IZQUIERDO: CONTROLES ============ -->
-        <aside id="control-panel" class="absolute top-4 left-4 w-[22rem] max-h-[calc(100vh-6rem)] bg-white/95 backdrop-blur-md border border-slate-200 rounded-2xl shadow-xl z-10 flex flex-col">
+        <aside id="control-panel" class="absolute top-4 left-4 w-[22rem] max-w-[calc(100vw-2rem)] max-h-[calc(100vh-6rem)] bg-white/95 backdrop-blur-md border border-slate-200 rounded-2xl shadow-xl z-10 flex flex-col">
             <div class="p-3 border-b border-slate-100 flex justify-between items-center gap-2 bg-slate-50/50 rounded-t-2xl">
-                <h2 class="font-bold text-xs text-slate-800 flex items-center gap-2 uppercase tracking-wider"><i class="fa-solid fa-layer-group text-rose-600"></i> Simulador &amp; capas</h2>
+                <h2 class="font-bold text-xs text-slate-800 flex items-center gap-2 uppercase tracking-wider"><i class="fa-solid fa-layer-group text-rose-600"></i> Simulador</h2>
                 <div class="flex items-center gap-1">
                     <span id="layer-status" class="text-[10px] text-slate-600 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-full font-mono">Cargando...</span>
                     <button data-min="control" title="Minimizar / expandir" class="w-7 h-7 rounded-lg hover:bg-slate-200 text-slate-500"><i class="fa-solid fa-chevron-up"></i></button>
@@ -156,17 +168,47 @@
                         <option value="arteriales">4. Solo arteriales y colectoras</option>
                         <option value="custom">5. Personalizado</option>
                     </select>
-                    <p class="text-[10px] text-slate-500">Todos los escenarios se comparan con el tendencial.</p>
+                </div>
+
+                <!-- Proyectos -->
+                <div class="space-y-2 bg-violet-50/60 p-3 rounded-xl border border-violet-200">
+                    <div class="flex items-center justify-between">
+                        <label class="text-[11px] font-bold text-violet-800 uppercase tracking-wider">Proyectos en el mapa</label>
+                        <span id="proj-count" class="text-[10px] text-violet-600">0 proyectos</span>
+                    </div>
+                    <div class="flex gap-2">
+                        <select id="proj-type" class="flex-1 bg-white border border-violet-200 rounded-lg px-2 py-1.5 text-xs">
+                            <option value="polo">Polo de empleo (punto)</option>
+                            <option value="dens">Densificación (zona)</option>
+                            <option value="via">Vía nueva (línea)</option>
+                        </select>
+                        <button id="btn-add-proj" class="bg-violet-700 hover:bg-violet-800 text-white rounded-lg px-3 py-1.5 font-semibold flex items-center gap-1 disabled:opacity-50" disabled>
+                            <i class="fa-solid fa-plus"></i> Ubicar
+                        </button>
+                    </div>
+                    <p id="proj-type-help" class="text-[10px] text-violet-700/80"></p>
+                    <div id="proj-list" class="space-y-2"></div>
                 </div>
 
                 <!-- Vista -->
                 <div class="space-y-1.5">
                     <label class="text-[11px] font-bold text-slate-700 uppercase tracking-wider block">Qué mostrar en el mapa</label>
                     <select id="view-mode" class="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs">
-                        <option value="BASE">Empleos actuales (CENEC depurado)</option>
-                        <option value="PROY">Empleos proyectados (escenario)</option>
-                        <option value="NUEVO">Empleos nuevos (escenario)</option>
-                        <option value="DIF" selected>Diferencia vs tendencial (efecto vial)</option>
+                        <optgroup label="Empleo">
+                            <option value="BASE">Empleos actuales (CENEC depurado)</option>
+                            <option value="PROY">Empleos proyectados (escenario)</option>
+                            <option value="NUEVO">Empleos nuevos (escenario)</option>
+                            <option value="DIF" selected>Diferencia de empleos vs referencia</option>
+                        </optgroup>
+                        <optgroup label="Valor de suelo (modelo hedónico)">
+                            <option value="VALOR">Valor de suelo estimado al horizonte</option>
+                            <option value="DVALOR">Cambio % del valor de suelo vs referencia</option>
+                        </optgroup>
+                    </select>
+                    <label class="text-[11px] text-slate-600 block pt-1">Comparar contra (referencia)</label>
+                    <select id="ref-mode" class="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs">
+                        <option value="tendencial" selected>Tendencial (sin efecto vial ni proyectos)</option>
+                        <option value="sinproy">Mismo escenario vial, sin proyectos</option>
                     </select>
                 </div>
 
@@ -192,7 +234,6 @@
                         <label class="text-[11px] font-bold text-slate-700 uppercase tracking-wider">Parámetros del modelo</label>
                         <span class="text-[10px] text-amber-600 italic">supuestos</span>
                     </div>
-
                     <div class="grid grid-cols-2 gap-2">
                         <div>
                             <label class="text-[11px] text-slate-600 block mb-1">Año base (datos)</label>
@@ -203,7 +244,6 @@
                             <input type="number" id="p-thr" value="5000" min="100" step="100" class="w-full border border-slate-200 rounded-lg px-2 py-1">
                         </div>
                     </div>
-
                     <div>
                         <label class="text-[11px] text-slate-600 flex justify-between"><span>Horizonte</span><span id="v-year" class="text-rose-600 font-bold"></span></label>
                         <input type="range" id="p-year" min="2025" max="2050" value="2040" step="1" class="w-full accent-rose-600">
@@ -218,15 +258,17 @@
                         <p class="text-[10px] text-slate-400" id="v-beta-help"></p>
                     </div>
                     <div>
-                        <label class="text-[11px] text-slate-600 flex justify-between"><span>α · efecto aglomeración</span><span id="v-alpha" class="text-indigo-600 font-bold"></span></label>
+                        <label class="text-[11px] text-slate-600 flex justify-between"><span>α · aglomeración en la manzana</span><span id="v-alpha" class="text-indigo-600 font-bold"></span></label>
                         <input type="range" id="p-alpha" min="0" max="1.5" value="1" step="0.05" class="w-full accent-indigo-600">
                     </div>
-
+                    <div>
+                        <label class="text-[11px] text-slate-600 flex justify-between"><span>γ · atracción de empleos a ≤ 1 km</span><span id="v-gamma" class="text-indigo-600 font-bold"></span></label>
+                        <input type="range" id="p-gamma" min="0" max="1.5" value="0.5" step="0.05" class="w-full accent-indigo-600">
+                    </div>
                     <div>
                         <label class="text-[11px] text-slate-600 block mb-1">Clases viales activas en el escenario</label>
                         <div id="road-classes" class="space-y-1"></div>
                     </div>
-
                     <button id="btn-run" class="w-full py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl shadow-md shadow-rose-600/20 flex items-center justify-center gap-2 disabled:opacity-50" disabled>
                         <i class="fa-solid fa-play text-xs"></i><span>Ejecutar simulación</span>
                     </button>
@@ -244,8 +286,8 @@
         </aside>
 
         <!-- ============ PANEL DERECHO: INDICADORES ============ -->
-        <aside id="dashboard-panel" class="absolute top-4 right-4 w-[24rem] max-h-[calc(100vh-6rem)] bg-white/95 backdrop-blur-md border border-slate-200 rounded-2xl shadow-xl z-10 flex flex-col">
-            <div class="p-3.5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 rounded-t-2xl">
+        <aside id="dashboard-panel" class="absolute top-4 right-4 w-[24rem] max-w-[calc(100vw-2rem)] max-h-[calc(100vh-6rem)] bg-white/95 backdrop-blur-md border border-slate-200 rounded-2xl shadow-xl z-10 flex flex-col">
+            <div class="p-3 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 rounded-t-2xl">
                 <h2 class="font-bold text-xs text-slate-800 flex items-center gap-2 uppercase tracking-wider"><i class="fa-solid fa-chart-pie text-emerald-600"></i> Indicadores</h2>
                 <div class="flex items-center gap-1">
                     <span class="text-[10px] text-slate-400 hidden sm:inline">calculados desde los datos</span>
@@ -267,26 +309,35 @@
                     </div>
                 </div>
 
+                <!-- Proyectos -->
+                <div id="card-proj" class="bg-violet-50/60 p-3 rounded-xl border border-violet-200 space-y-1.5 hidden">
+                    <span class="text-[10px] text-violet-800 block uppercase font-medium"><i class="fa-solid fa-location-dot"></i> Efecto de los proyectos <span id="k-proj-ref" class="normal-case"></span></span>
+                    <div id="k-proj" class="space-y-1.5"></div>
+                </div>
+
                 <div class="bg-emerald-50/60 p-3 rounded-xl border border-emerald-200 space-y-1">
-                    <span class="text-[10px] text-emerald-700 block uppercase font-medium"><i class="fa-solid fa-route"></i> Efecto del escenario vial</span>
+                    <span class="text-[10px] text-emerald-700 block uppercase font-medium"><i class="fa-solid fa-route"></i> Efecto vial en la localización</span>
                     <div class="grid grid-cols-2 gap-2 text-[11px]">
                         <div><span class="text-slate-500 block">Nuevos empleos a ≤ 1 km de una vía</span><span id="k-near" class="font-bold text-emerald-700 text-sm">—</span></div>
-                        <div><span class="text-slate-500 block">Empleos reubicados por las vías</span><span id="k-moved" class="font-bold text-emerald-700 text-sm">—</span></div>
+                        <div><span class="text-slate-500 block">Empleos reubicados vs referencia</span><span id="k-moved" class="font-bold text-emerald-700 text-sm">—</span></div>
                     </div>
                     <p id="k-dist" class="text-[10px] text-slate-500"></p>
                 </div>
 
-                <div class="grid grid-cols-2 gap-2">
-                    <div class="bg-slate-50 p-3 rounded-xl border border-slate-200">
-                        <span class="text-[10px] text-slate-400 block uppercase font-medium">Datos usados</span>
-                        <span id="k-blocks" class="text-sm font-bold text-slate-900">—</span>
-                        <span id="k-blocks-sub" class="text-[10px] text-slate-400 block"></span>
+                <!-- Valor de suelo -->
+                <div class="bg-amber-50/60 p-3 rounded-xl border border-amber-200 space-y-1.5">
+                    <span class="text-[10px] text-amber-800 block uppercase font-medium"><i class="fa-solid fa-sack-dollar"></i> Valor de suelo</span>
+                    <div class="grid grid-cols-2 gap-2 text-[11px]">
+                        <div><span class="text-slate-500 block">Observado (mediana)</span><span id="k-soil" class="font-bold text-amber-700 text-sm">—</span><span id="k-soil-sub" class="text-[10px] text-amber-600 block"></span></div>
+                        <div><span class="text-slate-500 block">Estimado promedio por manzana</span><span id="k-val" class="font-bold text-amber-700 text-sm">—</span><span id="k-val-sub" class="text-[10px] text-amber-600 block"></span></div>
                     </div>
-                    <div class="bg-amber-50/60 p-3 rounded-xl border border-amber-200">
-                        <span class="text-[10px] text-amber-700 block uppercase font-medium">Valor de suelo observado</span>
-                        <span id="k-soil" class="text-sm font-bold text-amber-700">—</span>
-                        <span id="k-soil-sub" class="text-[10px] text-amber-600 block"></span>
-                    </div>
+                    <div id="k-hed" class="text-[10px] text-slate-600 bg-white/70 border border-amber-100 rounded-lg p-2 space-y-0.5"></div>
+                </div>
+
+                <div class="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                    <span class="text-[10px] text-slate-400 block uppercase font-medium">Datos usados</span>
+                    <span id="k-blocks" class="text-sm font-bold text-slate-900">—</span>
+                    <span id="k-blocks-sub" class="text-[10px] text-slate-400 block"></span>
                 </div>
 
                 <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1">
@@ -315,7 +366,6 @@ const URL_VIAS     = `${REST}/p_1501_1_sistema_vial_metropolitano_propuesto/Feat
 const URL_LIMITES  = `${REST}/LIMITES_INEI/FeatureServer/0`;
 const URL_SUELO    = `${REST}/VALOR_DE_SUELO/FeatureServer/0`;
 
-// Lima Norte (UBIGEO INEI). Los nombres se reemplazan por NOMBDIST del servidor si está disponible.
 const LIMA_NORTE = {
     "150102": "Ancón", "150106": "Carabayllo", "150110": "Comas", "150112": "Independencia",
     "150117": "Los Olivos", "150125": "Puente Piedra", "150135": "San Martín de Porres", "150139": "Santa Rosa"
@@ -341,9 +391,24 @@ const SCENARIOS = {
     custom:     { name: "Personalizado" }
 };
 
-const NEAR_M = 1000;      // umbral "cerca de una vía" para indicadores
-const PAGE = 2000;        // maxRecordCount del servidor
+const PROJ_TYPES = {
+    polo: { label: "Polo de empleo", help: "Haz clic en el mapa donde estará el proyecto (centro comercial, hospital, parque industrial...)." },
+    dens: { label: "Densificación", help: "Haz clic en el centro de la zona que se densificará. Luego ajusta el radio y los m² adicionales." },
+    via:  { label: "Vía nueva", help: "Haz clic en el mapa para trazar la vía; doble clic para terminar." }
+};
+
+const NEAR_M = 1000;
+const PAGE = 2000;
+const COS0 = Math.cos(11.9 * Math.PI / 180);       // latitud media de Lima Norte
+const JCELL_M = 250, JRAD_M = 1000;                 // grilla para "empleos a ≤ 1 km"
+const JCELL = JCELL_M / COS0;                       // tamaño de celda en unidades Web Mercator
+const J_OFFSETS = (() => {
+    const r = Math.ceil(JRAD_M / JCELL_M), o = [];
+    for (let i = -r; i <= r; i++) for (let k = -r; k <= r; k++) if (Math.hypot(i, k) * JCELL_M <= JRAD_M) o.push([i, k]);
+    return o;
+})();
 const fmt = (n, d = 0) => Number(n).toLocaleString("es-PE", { maximumFractionDigits: d, minimumFractionDigits: d });
+const pct = (x, d = 1) => `${x >= 0 ? "+" : ""}${fmt(x * 100, d)}%`;
 const esc = s => String(s ?? "").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
 
 // =====================================================================
@@ -358,7 +423,6 @@ async function queryREST(layerUrl, params) {
     return json;
 }
 
-// Descarga TODOS los registros respetando el límite de 2000 por consulta (paginación con resultOffset).
 async function fetchAll(layerUrl, params, orderBy, onProgress) {
     const { count } = await queryREST(layerUrl, { where: params.where, returnCountOnly: true });
     const pages = Math.ceil(count / PAGE);
@@ -383,59 +447,51 @@ async function fetchAll(layerUrl, params, orderBy, onProgress) {
 //  ESTADO
 // =====================================================================
 const D = {
-    n: 0, ids: [], ubigeo: [], X: null, Y: null, cosLat: null, raw: null, estab: null,
-    roads: [],                 // {name, clase, paths:[[x,y],...]}
-    districtNames: { ...LIMA_NORTE },
-    soil: null                 // {median, n}
+    n: 0, ids: [], ubigeo: [], X: null, Y: null, cosLat: null, raw: null, jcx: null, jcy: null,
+    roads: [], districtNames: { ...LIMA_NORTE },
+    dAll: null,              // distancia (m) de cada manzana a cualquier vía del sistema propuesto
+    soil: null,              // registros de valor de suelo: {x, y, cos, jcx, jcy, price, dAll}
+    soilMedian: null
 };
-let R = null;                  // resultados de la última simulación
+let R = null;
 
 // =====================================================================
-//  GEOMETRÍA: distancia punto–segmento con grilla espacial
+//  GEOMETRÍA
 // =====================================================================
-function buildSegmentGrid(classSet, cell) {
-    const segs = [], segRoad = [];
-    D.roads.forEach((r, ri) => {
-        if (!classSet.has(r.clase)) return;
-        r.paths.forEach(path => {
-            for (let i = 0; i < path.length - 1; i++) {
-                segs.push(path[i][0], path[i][1], path[i + 1][0], path[i + 1][1]);
-                segRoad.push(ri);
-            }
-        });
-    });
-    const grid = new Map();
-    const key = (cx, cy) => cx * 100000 + cy;
-    const nSeg = segRoad.length;
-    for (let s = 0; s < nSeg; s++) {
-        const x1 = segs[4 * s], y1 = segs[4 * s + 1], x2 = segs[4 * s + 2], y2 = segs[4 * s + 3];
-        const cx0 = Math.floor(Math.min(x1, x2) / cell), cx1 = Math.floor(Math.max(x1, x2) / cell);
-        const cy0 = Math.floor(Math.min(y1, y2) / cell), cy1 = Math.floor(Math.max(y1, y2) / cell);
-        for (let cx = cx0; cx <= cx1; cx++) for (let cy = cy0; cy <= cy1; cy++) {
-            const k = key(cx, cy);
-            if (!grid.has(k)) grid.set(k, []);
-            grid.get(k).push(s);
-        }
-    }
-    return { segs: new Float64Array(segs), segRoad, grid, key, cell, nSeg };
-}
-
 function distPointSeg(px, py, x1, y1, x2, y2) {
-    const dx = x2 - x1, dy = y2 - y1;
-    const L2 = dx * dx + dy * dy;
+    const dx = x2 - x1, dy = y2 - y1, L2 = dx * dx + dy * dy;
     let t = L2 > 0 ? ((px - x1) * dx + (py - y1) * dy) / L2 : 0;
     t = Math.max(0, Math.min(1, t));
     const qx = x1 + t * dx - px, qy = y1 + t * dy - py;
     return Math.sqrt(qx * qx + qy * qy);
 }
 
-// Devuelve distancia en unidades del mapa (Web Mercator) y el índice de la vía más cercana.
-function nearestRoad(G, px, py, maxRings) {
+// Grilla de segmentos para buscar la vía más cercana rápido. roadList: [{paths:[[ [x,y],... ]]}]
+function buildGrid(roadList, cell = 600) {
+    const segs = [], segRef = [];
+    roadList.forEach((r, ri) => r.paths.forEach(path => {
+        for (let i = 0; i < path.length - 1; i++) { segs.push(path[i][0], path[i][1], path[i + 1][0], path[i + 1][1]); segRef.push(ri); }
+    }));
+    const grid = new Map(), key = (cx, cy) => cx * 100000 + cy;
+    for (let s = 0; s < segRef.length; s++) {
+        const x1 = segs[4 * s], y1 = segs[4 * s + 1], x2 = segs[4 * s + 2], y2 = segs[4 * s + 3];
+        for (let cx = Math.floor(Math.min(x1, x2) / cell); cx <= Math.floor(Math.max(x1, x2) / cell); cx++)
+            for (let cy = Math.floor(Math.min(y1, y2) / cell); cy <= Math.floor(Math.max(y1, y2) / cell); cy++) {
+                const k = key(cx, cy);
+                if (!grid.has(k)) grid.set(k, []);
+                grid.get(k).push(s);
+            }
+    }
+    return { segs: new Float64Array(segs), segRef, grid, key, cell, nSeg: segRef.length };
+}
+
+function nearestRoad(G, px, py, maxRings = 80) {
+    if (!G.nSeg) return { d: Infinity, ref: -1 };
     const cx = Math.floor(px / G.cell), cy = Math.floor(py / G.cell);
     let best = Infinity, bestSeg = -1;
     for (let r = 0; r <= maxRings; r++) {
         for (let i = -r; i <= r; i++) for (let j = -r; j <= r; j++) {
-            if (Math.max(Math.abs(i), Math.abs(j)) !== r) continue;   // solo el anillo r
+            if (Math.max(Math.abs(i), Math.abs(j)) !== r) continue;
             const list = G.grid.get(G.key(cx + i, cy + j));
             if (!list) continue;
             for (const s of list) {
@@ -443,30 +499,111 @@ function nearestRoad(G, px, py, maxRings) {
                 if (d < best) { best = d; bestSeg = s; }
             }
         }
-        if (best <= r * G.cell) break;   // ningún anillo más lejano puede estar más cerca
+        if (best <= r * G.cell) break;
     }
-    return { d: best, road: bestSeg >= 0 ? G.segRoad[bestSeg] : -1 };
+    return { d: best, ref: bestSeg >= 0 ? G.segRef[bestSeg] : -1 };
 }
+
+// Distancia en metros (Web Mercator × cos(lat)) de cada punto a la vía más cercana de roadList.
+function distancesTo(roadList, xs, ys, coss, mask) {
+    const n = xs.length, dist = new Float64Array(n).fill(Infinity), ref = new Int32Array(n).fill(-1);
+    if (!roadList.length) return { dist, ref };
+    const G = buildGrid(roadList);
+    if (G.nSeg <= 500) {
+        // Pocos tramos (vías dibujadas): comparar contra todos es más rápido que recorrer la grilla.
+        for (let j = 0; j < n; j++) {
+            if (mask && !mask[j]) continue;
+            let best = Infinity, bs = -1;
+            for (let s = 0; s < G.nSeg; s++) {
+                const d = distPointSeg(xs[j], ys[j], G.segs[4 * s], G.segs[4 * s + 1], G.segs[4 * s + 2], G.segs[4 * s + 3]);
+                if (d < best) { best = d; bs = s; }
+            }
+            dist[j] = best * coss[j];
+            ref[j] = bs >= 0 ? G.segRef[bs] : -1;
+        }
+        return { dist, ref };
+    }
+    for (let j = 0; j < n; j++) {
+        if (mask && !mask[j]) continue;
+        const r = nearestRoad(G, xs[j], ys[j]);
+        dist[j] = r.d * coss[j];
+        ref[j] = r.ref;
+    }
+    return { dist, ref };
+}
+
+// ---- Empleos a ≤ 1 km (grilla de 250 m) ----
+const ckey = (cx, cy) => cx * 1000000 + cy;
+function cellSums(E, mask) {
+    const m = new Map();
+    for (let j = 0; j < D.n; j++) {
+        if (!mask[j] || !E[j]) continue;
+        const k = ckey(D.jcx[j], D.jcy[j]);
+        m.set(k, (m.get(k) || 0) + E[j]);
+    }
+    return m;
+}
+function jobsNear(sums, cx, cy) {
+    let s = 0;
+    for (const [i, k] of J_OFFSETS) { const v = sums.get(ckey(cx + i, cy + k)); if (v) s += v; }
+    return s;
+}
+function jobsNearAll(sums) {
+    const J = new Float64Array(D.n);
+    for (let j = 0; j < D.n; j++) J[j] = jobsNear(sums, D.jcx[j], D.jcy[j]);
+    return J;
+}
+
+// =====================================================================
+//  ESTADÍSTICA: mínimos cuadrados ordinarios
+// =====================================================================
+function invertMatrix(M) {
+    const n = M.length, A = M.map((row, i) => [...row, ...Array.from({ length: n }, (_, k) => (k === i ? 1 : 0))]);
+    for (let c = 0; c < n; c++) {
+        let p = c;
+        for (let r = c + 1; r < n; r++) if (Math.abs(A[r][c]) > Math.abs(A[p][c])) p = r;
+        if (Math.abs(A[p][c]) < 1e-12) return null;
+        [A[c], A[p]] = [A[p], A[c]];
+        const piv = A[c][c];
+        for (let k = 0; k < 2 * n; k++) A[c][k] /= piv;
+        for (let r = 0; r < n; r++) if (r !== c) { const f = A[r][c]; for (let k = 0; k < 2 * n; k++) A[r][k] -= f * A[c][k]; }
+    }
+    return A.map(row => row.slice(n));
+}
+
+function ols(X, y) {
+    const n = X.length, k = X[0].length;
+    const XtX = Array.from({ length: k }, () => new Array(k).fill(0)), Xty = new Array(k).fill(0);
+    for (let i = 0; i < n; i++) for (let a = 0; a < k; a++) { Xty[a] += X[i][a] * y[i]; for (let b = 0; b < k; b++) XtX[a][b] += X[i][a] * X[i][b]; }
+    const inv = invertMatrix(XtX);
+    if (!inv) return null;
+    const b = inv.map(row => row.reduce((s, v, j) => s + v * Xty[j], 0));
+    const ybar = y.reduce((s, v) => s + v, 0) / n;
+    let sse = 0, sst = 0;
+    for (let i = 0; i < n; i++) { const yh = X[i].reduce((s, v, j) => s + v * b[j], 0); sse += (y[i] - yh) ** 2; sst += (y[i] - ybar) ** 2; }
+    const s2 = sse / (n - k);
+    const se = inv.map((row, i) => Math.sqrt(Math.max(0, row[i] * s2)));
+    return { b, se, t: b.map((v, i) => v / se[i]), R2: sst > 0 ? 1 - sse / sst : 0, n };
+}
+
+// Modelo hedónico: ln(S/m2) = b0 + b1·d_km + b2·ln(1+J)
+function estimateHedonic(sumsBase) {
+    if (!D.soil || D.soil.length < 20) return null;
+    const rows = D.soil.filter(s => Number.isFinite(s.dAll)).map(s => ({ y: Math.log(s.price), d: s.dAll / 1000, J: jobsNear(sumsBase, s.jcx, s.jcy) }));
+    const ys = rows.map(r => r.y).sort((a, b) => a - b);
+    const lo = ys[Math.floor(0.01 * ys.length)], hi = ys[Math.ceil(0.99 * ys.length) - 1];
+    const use = rows.filter(r => r.y >= lo && r.y <= hi);
+    if (use.length < 20) return null;
+    const fit = ols(use.map(r => [1, r.d, Math.log1p(r.J)]), use.map(r => r.y));
+    if (!fit) return null;
+    fit.nTotal = D.soil.length;
+    return fit;
+}
+const hedPredict = (h, dMeters, J) => Math.exp(h.b[0] + h.b[1] * (dMeters / 1000) + h.b[2] * Math.log1p(J));
 
 // =====================================================================
 //  MODELO
 // =====================================================================
-function readParams() {
-    const scenarioKey = document.getElementById("scenario").value;
-    const clases = [...document.querySelectorAll("#road-classes input:checked")].map(i => i.value);
-    return {
-        scenarioKey,
-        scenarioName: scenarioKey === "custom" ? "Personalizado" : SCENARIOS[scenarioKey].name,
-        baseYear: parseInt(document.getElementById("p-baseyear").value, 10),
-        year: parseInt(document.getElementById("p-year").value, 10),
-        g: parseFloat(document.getElementById("p-growth").value) / 100,
-        beta: parseFloat(document.getElementById("p-beta").value),
-        alpha: parseFloat(document.getElementById("p-alpha").value),
-        thr: parseFloat(document.getElementById("p-thr").value),
-        clases
-    };
-}
-
 function logitShares(logw, mask) {
     let max = -Infinity;
     for (let j = 0; j < logw.length; j++) if (mask[j] && logw[j] > max) max = logw[j];
@@ -477,83 +614,166 @@ function logitShares(logw, mask) {
     return p;
 }
 
-function runModel(P) {
+function nearestBlock(x, y, used) {
+    let best = Infinity, bj = -1;
+    for (let j = 0; j < D.n; j++) { if (!used[j]) continue; const d = (D.X[j] - x) ** 2 + (D.Y[j] - y) ** 2; if (d < best) { best = d; bj = j; } }
+    return bj;
+}
+function blocksWithin(x, y, radiusM, used) {
+    const out = [];
+    for (let j = 0; j < D.n; j++) if (used[j] && Math.hypot(D.X[j] - x, D.Y[j] - y) * D.cosLat[j] <= radiusM) out.push(j);
+    return out;
+}
+
+function runModel(P, projects) {
     const n = D.n;
+    // 1) Empleo base depurado
     const E = new Float64Array(n), used = new Uint8Array(n), excluded = new Uint8Array(n);
     let Etot = 0, nUsed = 0, nExcl = 0, nNull = 0;
     for (let j = 0; j < n; j++) {
         const v = D.raw[j];
-        if (Number.isNaN(v)) { nNull++; E[j] = 0; used[j] = 1; nUsed++; continue; }   // sin dato = 0 empleos registrados
-        if (v > P.thr) { excluded[j] = 1; nExcl++; continue; }                           // valor atípico: fuera del modelo
+        if (Number.isNaN(v)) { nNull++; used[j] = 1; nUsed++; continue; }
+        if (v > P.thr) { excluded[j] = 1; nExcl++; continue; }
         E[j] = Math.max(0, v); used[j] = 1; nUsed++; Etot += E[j];
     }
-
     const years = Math.max(0, P.year - P.baseYear);
     const growthFactor = Math.pow(1 + P.g, years);
     const dE = Etot * (growthFactor - 1);
 
-    // Distancia a la vía activa más cercana (en metros reales: Web Mercator × cos(latitud)).
-    const dist = new Float64Array(n).fill(Infinity);
-    const nearRoad = new Int32Array(n).fill(-1);
+    // 2) Proyectos: empleos directos
+    const act = projects.filter(p => p.active);
+    const Dd = new Float64Array(n);
+    let Dtot = 0;
+    const projInfo = [];
+    for (const p of act) {
+        let direct = 0, blocks = [];
+        if (p.type === "polo") {
+            const j = nearestBlock(p.geom.x, p.geom.y, used);
+            if (j >= 0) { Dd[j] += p.jobs; direct = p.jobs; blocks = [j]; }
+        } else if (p.type === "dens") {
+            direct = p.m2job > 0 ? p.area / p.m2job : 0;
+            blocks = blocksWithin(p.geom.x, p.geom.y, p.radius, used);
+            if (!blocks.length) { const j = nearestBlock(p.geom.x, p.geom.y, used); if (j >= 0) blocks = [j]; }
+            blocks.forEach(j => Dd[j] += direct / blocks.length);
+        }
+        Dtot += direct;
+        projInfo.push({ p, direct, nBlocksDirect: blocks.length });
+    }
+    const newRoads = act.filter(p => p.type === "via").map(p => ({ name: p.name, clase: p.clase, paths: p.geom.paths, proj: p }));
+
+    // 3) Distancias
     const activeSet = new Set(P.clases);
-    const hasRoads = activeSet.size > 0;
-    if (hasRoads) {
-        const G = buildSegmentGrid(activeSet, 600);
+    const activeRoads = D.roads.filter(r => activeSet.has(r.clase));
+    const A = distancesTo(activeRoads, D.X, D.Y, D.cosLat, used);
+    const N = distancesTo(newRoads, D.X, D.Y, D.cosLat, used);
+    const dS1 = new Float64Array(n), nearKind = new Uint8Array(n);   // 0: vía existente, 1: vía nueva
+    for (let j = 0; j < n; j++) { if (N.dist[j] < A.dist[j]) { dS1[j] = N.dist[j]; nearKind[j] = 1; } else dS1[j] = A.dist[j]; }
+    const betaS0 = activeRoads.length ? P.beta : 0;
+    const betaS1 = (activeRoads.length || newRoads.length) ? P.beta : 0;
+
+    // 4) Aglomeración: empleos a ≤ 1 km
+    const sumsBase = cellSums(E, used), Jb = jobsNearAll(sumsBase);
+    const E1 = new Float64Array(n); for (let j = 0; j < n; j++) E1[j] = E[j] + Dd[j];
+    const J1 = Dtot > 0 ? jobsNearAll(cellSums(E1, used)) : Jb;
+
+    // 5) Logit: tendencial (T), escenario sin proyectos (S0), escenario con proyectos (S1)
+    const util = (Ev, Jv, dist, beta) => {
+        const u = new Float64Array(n);
         for (let j = 0; j < n; j++) {
             if (!used[j]) continue;
-            const r = nearestRoad(G, D.X[j], D.Y[j], 80);
-            dist[j] = r.d * D.cosLat[j];
-            nearRoad[j] = r.road;
+            u[j] = P.alpha * Math.log1p(Ev[j]) + P.gamma * Math.log1p(Jv[j]) - (beta > 0 && Number.isFinite(dist[j]) ? beta * dist[j] / 1000 : 0);
         }
+        return u;
+    };
+    const pT = logitShares(util(E, Jb, A.dist, 0), used);
+    const pS0 = logitShares(util(E, Jb, A.dist, betaS0), used);
+    const pS1 = logitShares(util(E1, J1, dS1, betaS1), used);
+    const newT = new Float64Array(n), newS0 = new Float64Array(n), newS1 = new Float64Array(n);
+    for (let j = 0; j < n; j++) if (used[j]) { newT[j] = dE * pT[j]; newS0[j] = dE * pS0[j]; newS1[j] = dE * pS1[j] + Dd[j]; }
+    const ref = P.ref === "sinproy" ? newS0 : newT;
+    const refLabel = P.ref === "sinproy" ? "mismo escenario sin proyectos" : "tendencial";
+    const dif = new Float64Array(n);
+    let checkSum = 0, moved = 0;
+    for (let j = 0; j < n; j++) if (used[j]) {
+        dif[j] = newS1[j] - ref[j];
+        checkSum += newS1[j];
+        moved += Math.max(0, dE * pS1[j] - ref[j]);
     }
-    const effectiveBeta = hasRoads ? P.beta : 0;
 
-    const lwT = new Float64Array(n), lwS = new Float64Array(n);
-    for (let j = 0; j < n; j++) {
-        if (!used[j]) continue;
-        lwT[j] = P.alpha * Math.log1p(E[j]);
-        lwS[j] = lwT[j] - (effectiveBeta > 0 ? effectiveBeta * (dist[j] / 1000) : 0);
-    }
-    const pT = logitShares(lwT, used), pS = logitShares(lwS, used);
-
-    const newT = new Float64Array(n), newS = new Float64Array(n), dif = new Float64Array(n);
-    let sumS = 0, nearNewT = 0, nearNewS = 0, nearBase = 0, moved = 0;
-    let wDistBase = 0, wDistProj = 0, totProjS = 0;
-    for (let j = 0; j < n; j++) {
-        if (!used[j]) continue;
-        newT[j] = dE * pT[j];
-        newS[j] = dE * pS[j];
-        dif[j] = newS[j] - newT[j];
-        sumS += newS[j];
-        if (dif[j] > 0) moved += dif[j];
-        if (dist[j] <= NEAR_M) { nearNewT += newT[j]; nearNewS += newS[j]; nearBase += E[j]; }
-        if (Number.isFinite(dist[j])) {
-            wDistBase += E[j] * dist[j];
-            wDistProj += (E[j] + newS[j]) * dist[j];
-            totProjS += E[j] + newS[j];
+    // 6) Valor de suelo (modelo hedónico)
+    const hed = estimateHedonic(sumsBase);
+    let priceBase = null, priceRef = null, priceS1 = null, dval = null, dAllS1 = null;
+    const priceStats = {};
+    if (hed) {
+        dAllS1 = new Float64Array(n);
+        for (let j = 0; j < n; j++) dAllS1[j] = Math.min(D.dAll[j], N.dist[j]);
+        const Eref = new Float64Array(n), ES1 = new Float64Array(n);
+        for (let j = 0; j < n; j++) { Eref[j] = E[j] + ref[j]; ES1[j] = E[j] + newS1[j]; }
+        const JpRef = jobsNearAll(cellSums(Eref, used)), JpS1 = jobsNearAll(cellSums(ES1, used));
+        priceBase = new Float64Array(n); priceRef = new Float64Array(n); priceS1 = new Float64Array(n); dval = new Float64Array(n);
+        let sb = 0, sr = 0, ss = 0, cnt = 0;
+        for (let j = 0; j < n; j++) {
+            if (!used[j] || !Number.isFinite(D.dAll[j])) continue;
+            priceBase[j] = hedPredict(hed, D.dAll[j], Jb[j]);
+            priceRef[j] = hedPredict(hed, D.dAll[j], JpRef[j]);
+            priceS1[j] = hedPredict(hed, dAllS1[j], JpS1[j]);
+            dval[j] = priceS1[j] / priceRef[j] - 1;
+            sb += priceBase[j]; sr += priceRef[j]; ss += priceS1[j]; cnt++;
         }
+        Object.assign(priceStats, { meanBase: sb / cnt, meanRef: sr / cnt, meanS1: ss / cnt });
     }
 
-    // Agregados por distrito
+    // 7) Indicadores por proyecto (zona de influencia)
+    const allInfo = projInfo.concat(newRoads.map(r => ({ p: r.proj, direct: 0 })));
+    for (const info of allInfo) {
+        const p = info.p;
+        let zone;
+        if (p.type === "via") {
+            const Z = distancesTo([{ paths: p.geom.paths }], D.X, D.Y, D.cosLat, used);
+            zone = j => Z.dist[j] <= NEAR_M;
+            info.zoneLabel = "a ≤ 1 km de la vía";
+        } else {
+            const rad = p.type === "dens" ? Math.max(p.radius, 300) : NEAR_M;
+            zone = j => Math.hypot(D.X[j] - p.geom.x, D.Y[j] - p.geom.y) * D.cosLat[j] <= rad;
+            info.zoneLabel = `a ≤ ${fmt(rad)} m`;
+        }
+        let dj = 0, dv = 0, nz = 0, nv = 0;
+        for (let j = 0; j < n; j++) {
+            if (!used[j] || !zone(j)) continue;
+            nz++; dj += dif[j];
+            if (dval && Number.isFinite(dval[j])) { dv += dval[j]; nv++; }
+        }
+        Object.assign(info, { zoneBlocks: nz, zoneJobs: dj, zoneVal: nv ? dv / nv : null });
+    }
+    const projStats = act.map(p => allInfo.find(i => i.p === p));
+
+    // 8) Agregados
+    let nearS1 = 0, nearRef = 0, nearBase = 0, wDistBase = 0, wDistProj = 0, totProj = 0;
+    const hasDist = Number.isFinite(dS1.find(v => Number.isFinite(v)));
+    for (let j = 0; j < n; j++) {
+        if (!used[j] || !Number.isFinite(dS1[j])) continue;
+        if (dS1[j] <= NEAR_M) { nearS1 += newS1[j]; nearRef += ref[j]; nearBase += E[j]; }
+        wDistBase += E[j] * dS1[j]; wDistProj += (E[j] + newS1[j]) * dS1[j]; totProj += E[j] + newS1[j];
+    }
     const byDist = {};
-    Object.keys(D.districtNames).forEach(u => byDist[u] = { base: 0, newT: 0, newS: 0 });
+    Object.keys(D.districtNames).forEach(u => byDist[u] = { base: 0, ref: 0, s1: 0 });
     for (let j = 0; j < n; j++) {
         if (!used[j]) continue;
         const b = byDist[D.ubigeo[j]];
-        if (!b) continue;
-        b.base += E[j]; b.newT += newT[j]; b.newS += newS[j];
+        if (b) { b.base += E[j]; b.ref += ref[j]; b.s1 += newS1[j]; }
     }
 
     return {
-        P, E, used, excluded, dist, nearRoad, newT, newS, dif,
-        Etot, dE, growthFactor, years, nUsed, nExcl, nNull, hasRoads, effectiveBeta,
-        checkSum: sumS, moved,
-        nearShareT: dE > 0 ? nearNewT / dE : 0,
-        nearShareS: dE > 0 ? nearNewS / dE : 0,
+        P, E, used, excluded, Dd, dist: dS1, nearKind, nearA: A.ref, nearN: N.ref, activeRoads, newRoads,
+        Jb, newT, newS0, newS1, ref, refLabel, dif,
+        Etot, dE, Dtot, growthFactor, years, nUsed, nExcl, nNull, hasDist,
+        checkSum, expectedSum: dE + Dtot, moved,
+        nearShareS1: (dE + Dtot) > 0 ? nearS1 / (dE + Dtot) : 0,
+        nearShareRef: dE > 0 ? nearRef / dE : 0,
         nearShareBase: Etot > 0 ? nearBase / Etot : 0,
-        meanDistBase: Etot > 0 && hasRoads ? wDistBase / Etot : NaN,
-        meanDistProj: totProjS > 0 && hasRoads ? wDistProj / totProjS : NaN,
-        byDist
+        meanDistBase: Etot > 0 && hasDist ? wDistBase / Etot : NaN,
+        meanDistProj: totProj > 0 && hasDist ? wDistProj / totProj : NaN,
+        hed, priceBase, priceRef, priceS1, dval, priceStats, projStats, byDist
     };
 }
 
@@ -563,9 +783,9 @@ function runModel(P) {
 window.addEventListener("DOMContentLoaded", () => {
     const $ = id => document.getElementById(id);
 
-    // Modal y paneles
     $("btn-method").onclick = () => $("modal-method").classList.remove("hidden");
     document.querySelectorAll(".btn-close-method").forEach(b => b.onclick = () => $("modal-method").classList.add("hidden"));
+
     // ---- Paneles: ocultar, minimizar y mapa completo ----
     const panels = {
         control:   { aside: $("control-panel"),   body: $("control-body"),   btn: $("btn-toggle-panel"),     visible: true, min: false },
@@ -575,8 +795,7 @@ window.addEventListener("DOMContentLoaded", () => {
         const p = panels[key];
         p.aside.classList.toggle("hidden", !p.visible);
         p.body.classList.toggle("hidden", p.min);
-        const icon = p.aside.querySelector(`[data-min="${key}"] i`);
-        icon.className = p.min ? "fa-solid fa-chevron-down" : "fa-solid fa-chevron-up";
+        p.aside.querySelector(`[data-min="${key}"] i`).className = p.min ? "fa-solid fa-chevron-down" : "fa-solid fa-chevron-up";
         p.btn.classList.toggle("ring-2", p.visible);
         p.btn.classList.toggle("ring-rose-300", p.visible);
         const allHidden = !panels.control.visible && !panels.dashboard.visible;
@@ -593,11 +812,10 @@ window.addEventListener("DOMContentLoaded", () => {
         setPanel("control", { visible: show, min: false });
         setPanel("dashboard", { visible: show, min: false });
     };
-    // En pantallas pequeñas (celular) los paneles empiezan ocultos para ver el mapa completo
     if (window.innerWidth < 768) { panels.control.visible = false; panels.dashboard.visible = false; }
     renderPanel("control"); renderPanel("dashboard");
 
-    // Checkboxes de clases viales
+    // ---- Clases viales ----
     $("road-classes").innerHTML = CLASES.map(c => `
         <label class="flex items-center gap-2 cursor-pointer">
             <input type="checkbox" value="${c.id}" checked class="rounded border-slate-300">
@@ -610,15 +828,10 @@ window.addEventListener("DOMContentLoaded", () => {
         el.textContent = txt;
         el.className = "text-[10px] px-2 py-0.5 rounded-full font-mono border " + (
             kind === "ok" ? "text-emerald-700 bg-emerald-50 border-emerald-200" :
-            kind === "error" ? "text-red-700 bg-red-50 border-red-200" :
-            "text-slate-600 bg-slate-50 border-slate-200");
+            kind === "error" ? "text-red-700 bg-red-50 border-red-200" : "text-slate-600 bg-slate-50 border-slate-200");
     };
-    const loading = (txt, pct) => {
-        $("loading-text").textContent = txt;
-        if (pct != null) $("loading-bar").style.width = `${Math.round(pct)}%`;
-    };
+    const loading = (txt, p) => { $("loading-text").textContent = txt; if (p != null) $("loading-bar").style.width = `${Math.round(p)}%`; };
 
-    // Etiquetas de los sliders
     function refreshLabels() {
         $("v-year").textContent = $("p-year").value;
         $("v-growth").textContent = `${parseFloat($("p-growth").value).toFixed(1)} %/año`;
@@ -626,10 +839,11 @@ window.addEventListener("DOMContentLoaded", () => {
         $("v-beta").textContent = `${b.toFixed(2)} /km`;
         $("v-beta-help").textContent = b > 0
             ? `Una manzana a 1 km de la vía recibe ${fmt(Math.exp(-b) * 100, 0)}% de la atracción de una junto a la vía.`
-            : "β = 0: la cercanía a las vías no influye.";
+            : "β = 0: la cercanía a las vías no influye en el empleo.";
         $("v-alpha").textContent = parseFloat($("p-alpha").value).toFixed(2);
+        $("v-gamma").textContent = parseFloat($("p-gamma").value).toFixed(2);
     }
-    ["p-year", "p-growth", "p-beta", "p-alpha"].forEach(id => $(id).addEventListener("input", refreshLabels));
+    ["p-year", "p-growth", "p-beta", "p-alpha", "p-gamma"].forEach(id => $(id).addEventListener("input", refreshLabels));
     refreshLabels();
 
     function applyScenarioPreset(key) {
@@ -640,74 +854,84 @@ window.addEventListener("DOMContentLoaded", () => {
         refreshLabels();
     }
 
+    function readParams() {
+        const scenarioKey = $("scenario").value;
+        return {
+            scenarioKey,
+            scenarioName: scenarioKey === "custom" ? "Personalizado" : SCENARIOS[scenarioKey].name,
+            baseYear: parseInt($("p-baseyear").value, 10),
+            year: parseInt($("p-year").value, 10),
+            g: parseFloat($("p-growth").value) / 100,
+            beta: parseFloat($("p-beta").value),
+            alpha: parseFloat($("p-alpha").value),
+            gamma: parseFloat($("p-gamma").value),
+            thr: parseFloat($("p-thr").value),
+            ref: $("ref-mode").value,
+            clases: [...document.querySelectorAll("#road-classes input:checked")].map(i => i.value)
+        };
+    }
+
+    // ---- Proyectos ----
+    const projects = [];
+    let projSeq = 0;
+    const updateTypeHelp = () => $("proj-type-help").textContent = PROJ_TYPES[$("proj-type").value].help;
+    $("proj-type").addEventListener("change", updateTypeHelp);
+    updateTypeHelp();
+
     require([
-        "esri/Map", "esri/views/MapView", "esri/layers/FeatureLayer", "esri/Graphic",
+        "esri/Map", "esri/views/MapView", "esri/layers/FeatureLayer", "esri/layers/GraphicsLayer", "esri/Graphic",
         "esri/renderers/SimpleRenderer", "esri/renderers/UniqueValueRenderer", "esri/renderers/ClassBreaksRenderer",
-        "esri/symbols/SimpleFillSymbol", "esri/symbols/SimpleLineSymbol", "esri/symbols/SimpleMarkerSymbol",
-        "esri/smartMapping/renderers/heatmap", "esri/geometry/Extent"
-    ], function (Map, MapView, FeatureLayer, Graphic, SimpleRenderer, UniqueValueRenderer, ClassBreaksRenderer,
-                 SimpleFillSymbol, SimpleLineSymbol, SimpleMarkerSymbol, heatmapCreator, Extent) {
+        "esri/symbols/SimpleFillSymbol", "esri/symbols/SimpleLineSymbol", "esri/symbols/SimpleMarkerSymbol", "esri/symbols/TextSymbol",
+        "esri/smartMapping/renderers/heatmap", "esri/widgets/Sketch/SketchViewModel"
+    ], function (Map, MapView, FeatureLayer, GraphicsLayer, Graphic, SimpleRenderer, UniqueValueRenderer, ClassBreaksRenderer,
+                 SimpleFillSymbol, SimpleLineSymbol, SimpleMarkerSymbol, TextSymbol, heatmapCreator, SketchViewModel) {
 
         const map = new Map({ basemap: "gray-vector" });
-        const view = new MapView({
-            container: "viewDiv", map,
-            center: [-77.06, -11.9], zoom: 11,
-            ui: { components: ["zoom", "compass"] },
-            popup: { dockEnabled: false }
-        });
+        const view = new MapView({ container: "viewDiv", map, center: [-77.06, -11.9], zoom: 11, ui: { components: ["zoom", "compass"] }, popup: { dockEnabled: false } });
         view.ui.move("zoom", "bottom-right");
 
-        // ---------- Capas de referencia (servidas por ArcGIS) ----------
+        // ---------- Capas de referencia ----------
         const limitesLayer = new FeatureLayer({
-            url: URL_LIMITES, definitionExpression: WHERE_LN, title: "Límites distritales INEI",
-            outFields: ["NOMBDIST", "UBIGEO"],
+            url: URL_LIMITES, definitionExpression: WHERE_LN, title: "Límites distritales INEI", outFields: ["NOMBDIST", "UBIGEO"],
             renderer: new SimpleRenderer({ symbol: new SimpleFillSymbol({ color: [0, 0, 0, 0], outline: { color: [51, 65, 85, 0.9], width: 1.6 } }) }),
-            labelingInfo: [{ labelExpressionInfo: { expression: "$feature.NOMBDIST" },
-                symbol: { type: "text", color: [51, 65, 85], haloColor: "white", haloSize: 1.5, font: { size: 10, weight: "bold" } } }],
+            labelingInfo: [{ labelExpressionInfo: { expression: "$feature.NOMBDIST" }, symbol: { type: "text", color: [51, 65, 85], haloColor: "white", haloSize: 1.5, font: { size: 10, weight: "bold" } } }],
             popupTemplate: { title: "{NOMBDIST}", content: "UBIGEO: {UBIGEO}" }
         });
-
         const viasLayer = new FeatureLayer({
             url: URL_VIAS, title: "Sistema vial propuesto", outFields: ["nombre", "clasif", "long_km"],
             renderer: new UniqueValueRenderer({
-                field: "clasif",
-                defaultSymbol: new SimpleLineSymbol({ color: [148, 163, 184, 0.8], width: 1 }),
+                field: "clasif", defaultSymbol: new SimpleLineSymbol({ color: [148, 163, 184, 0.8], width: 1 }),
                 uniqueValueInfos: CLASES.map(c => ({ value: c.id, label: c.label, symbol: new SimpleLineSymbol({ color: [...c.color, 0.9], width: c.width }) }))
             }),
-            popupTemplate: { title: "{nombre}", content: [{ type: "fields", fieldInfos: [
-                { fieldName: "clasif", label: "Clasificación" },
-                { fieldName: "long_km", label: "Longitud (km)", format: { places: 2 } }] }] }
+            popupTemplate: { title: "{nombre}", content: [{ type: "fields", fieldInfos: [{ fieldName: "clasif", label: "Clasificación" }, { fieldName: "long_km", label: "Longitud (km)", format: { places: 2 } }] }] }
         });
-
         const manzanasLayer = new FeatureLayer({
-            url: URL_MANZANAS, definitionExpression: WHERE_LN, title: "Manzanas (contornos)",
-            outFields: ["IDMANZANA"], minScale: 30000, popupEnabled: false,
+            url: URL_MANZANAS, definitionExpression: WHERE_LN, title: "Manzanas", outFields: ["IDMANZANA"], minScale: 30000, popupEnabled: false,
             renderer: new SimpleRenderer({ symbol: new SimpleFillSymbol({ color: [255, 255, 255, 0.01], outline: { color: [100, 116, 139, 0.45], width: 0.4 } }) })
         });
-
         const sueloLayer = new FeatureLayer({
             url: URL_SUELO, definitionExpression: WHERE_LN, title: "Valor de suelo observado", visible: false,
             outFields: ["DISTRITO", "SOLES_M2", "PRECIO", "AREA_TOT", "TIPO", "ZONIFICACION", "NOM_VIA"],
             renderer: new SimpleRenderer({ symbol: new SimpleMarkerSymbol({ size: 5, color: [217, 119, 6, 0.85], outline: { color: "white", width: 0.5 } }) }),
-            popupTemplate: { title: "Valor de suelo – {DISTRITO}", content: [{ type: "fields", fieldInfos: [
+            popupTemplate: { title: "Valor de suelo observado – {DISTRITO}", content: [{ type: "fields", fieldInfos: [
                 { fieldName: "SOLES_M2", label: "S/ por m²", format: { places: 0, digitSeparator: true } },
                 { fieldName: "PRECIO", label: "Precio", format: { places: 0, digitSeparator: true } },
                 { fieldName: "AREA_TOT", label: "Área terreno (m²)", format: { places: 0, digitSeparator: true } },
-                { fieldName: "TIPO", label: "Tipo" }, { fieldName: "ZONIFICACION", label: "Zonificación" },
-                { fieldName: "NOM_VIA", label: "Vía" }] }] }
+                { fieldName: "TIPO", label: "Tipo" }, { fieldName: "ZONIFICACION", label: "Zonificación" }, { fieldName: "NOM_VIA", label: "Vía" }] }] }
         });
-
-        let resultLayer = null;   // capa calculada (puntos), se recrea en cada simulación
-
-        map.addMany([manzanasLayer, sueloLayer, viasLayer, limitesLayer]);
+        const projLayer = new GraphicsLayer({ title: "Proyectos" });
+        const sketchLayer = new GraphicsLayer({ title: "Dibujo" });
+        let resultLayer = null;
+        map.addMany([manzanasLayer, sueloLayer, viasLayer, limitesLayer, projLayer, sketchLayer]);
 
         // ---------- Controles de capas ----------
         const layerDefs = [
             { key: "result", label: "Resultado del modelo", get: () => resultLayer, opacity: 0.9, checked: true },
+            { key: "proj", label: "Proyectos", get: () => projLayer, opacity: 1, checked: true },
             { key: "manz", label: "Manzanas (al acercarse)", get: () => manzanasLayer, opacity: 1, checked: true },
             { key: "vias", label: "Sistema vial propuesto", get: () => viasLayer, opacity: 0.9, checked: true },
             { key: "lim", label: "Límites distritales", get: () => limitesLayer, opacity: 1, checked: true },
-            { key: "suelo", label: "Valor de suelo (puntos)", get: () => sueloLayer, opacity: 1, checked: false }
+            { key: "suelo", label: "Valor de suelo observado (puntos)", get: () => sueloLayer, opacity: 1, checked: false }
         ];
         const layerState = {};
         $("layer-controls").innerHTML = layerDefs.map(l => `
@@ -722,7 +946,6 @@ window.addEventListener("DOMContentLoaded", () => {
             $(`lc-${l.key}`).addEventListener("change", e => { layerState[l.key].visible = e.target.checked; const ly = l.get(); if (ly) ly.visible = e.target.checked; });
             $(`lo-${l.key}`).addEventListener("input", e => { layerState[l.key].opacity = parseFloat(e.target.value); const ly = l.get(); if (ly) ly.opacity = layerState[l.key].opacity; });
         });
-
         $("basemap-select").addEventListener("change", e => map.basemap = e.target.value);
 
         function updateRoadFilter(P) {
@@ -731,69 +954,174 @@ window.addEventListener("DOMContentLoaded", () => {
             viasLayer.definitionExpression = `clasif IN (${P.clases.map(c => `'${c.replace(/'/g, "''")}'`).join(",")})`;
         }
 
+        // ---------- Dibujo de proyectos ----------
+        const svm = new SketchViewModel({
+            view, layer: sketchLayer,
+            pointSymbol: new SimpleMarkerSymbol({ style: "diamond", size: 14, color: [109, 40, 217, 0.9], outline: { color: "white", width: 1.5 } }),
+            polylineSymbol: new SimpleLineSymbol({ color: [109, 40, 217, 0.95], width: 4, style: "short-dash" })
+        });
+        let drawing = false;
+        function setDrawing(on, text) {
+            drawing = on;
+            $("draw-hint").classList.toggle("hidden", !on);
+            if (text) $("draw-hint-text").textContent = text;
+            $("btn-add-proj").disabled = on;
+        }
+        let drawingType = "polo";
+        $("btn-add-proj").addEventListener("click", () => {
+            const type = drawingType = $("proj-type").value;
+            setDrawing(true, PROJ_TYPES[type].help);
+            svm.create(type === "via" ? "polyline" : "point");
+        });
+        $("btn-cancel-draw").addEventListener("click", () => { svm.cancel(); setDrawing(false); });
+        svm.on("create", evt => {
+            if (evt.state === "cancel") { setDrawing(false); return; }
+            if (evt.state !== "complete") return;
+            const type = drawingType, g = evt.graphic.geometry;
+            sketchLayer.removeAll();
+            setDrawing(false);
+            if (type === "via" && (!g.paths || !g.paths.length || g.paths[0].length < 2)) return;
+            const id = ++projSeq;
+            const p = { id, type, active: true, name: `P${id} · ${PROJ_TYPES[type].label}` };
+            if (type === "via") Object.assign(p, { geom: { paths: g.paths.map(path => path.map(v => [v[0], v[1]])) }, clase: "ARTERIALES" });
+            else Object.assign(p, { geom: { x: g.x, y: g.y } });
+            if (type === "polo") p.jobs = 1000;
+            if (type === "dens") Object.assign(p, { radius: 500, area: 20000, m2job: 20 });
+            projects.push(p);
+            if (projects.length === 1) $("ref-mode").value = "sinproy";
+            renderProjects(); drawProjects(); simulate();
+        });
+
+        function circlePolygon(x, y, radiusM) {
+            const r = radiusM / Math.cos(2 * Math.atan(Math.exp(y / 6378137)) - Math.PI / 2), ring = [];
+            for (let i = 0; i <= 64; i++) { const a = 2 * Math.PI * i / 64; ring.push([x + r * Math.cos(a), y + r * Math.sin(a)]); }
+            return { type: "polygon", rings: [ring], spatialReference: { wkid: 102100 } };
+        }
+        function drawProjects() {
+            projLayer.removeAll();
+            projects.forEach(p => {
+                const col = p.active ? [109, 40, 217] : [148, 163, 184];
+                const sr = { wkid: 102100 };
+                let anchor;
+                if (p.type === "via") {
+                    projLayer.add(new Graphic({ geometry: { type: "polyline", paths: p.geom.paths, spatialReference: sr }, symbol: new SimpleLineSymbol({ color: [...col, 0.95], width: 4, style: "short-dash" }) }));
+                    const path = p.geom.paths[0]; anchor = path[Math.floor(path.length / 2)];
+                } else {
+                    if (p.type === "dens") projLayer.add(new Graphic({ geometry: circlePolygon(p.geom.x, p.geom.y, p.radius), symbol: new SimpleFillSymbol({ color: [...col, 0.12], outline: { color: [...col, 0.9], width: 1.5, style: "dash" } }) }));
+                    projLayer.add(new Graphic({ geometry: { type: "point", x: p.geom.x, y: p.geom.y, spatialReference: sr },
+                        symbol: new SimpleMarkerSymbol({ style: p.type === "polo" ? "diamond" : "circle", size: p.type === "polo" ? 15 : 9, color: [...col, 0.95], outline: { color: "white", width: 1.5 } }) }));
+                    anchor = [p.geom.x, p.geom.y];
+                }
+                projLayer.add(new Graphic({ geometry: { type: "point", x: anchor[0], y: anchor[1], spatialReference: sr },
+                    symbol: new TextSymbol({ text: `P${p.id}`, color: [...col], haloColor: "white", haloSize: 1.5, yoffset: 12, font: { size: 10, weight: "bold" } }) }));
+            });
+        }
+
+        function renderProjects() {
+            $("proj-count").textContent = `${projects.length} proyecto${projects.length === 1 ? "" : "s"}`;
+            $("proj-list").innerHTML = projects.map(p => {
+                let params = "";
+                if (p.type === "polo") params = `
+                    <label class="col-span-2">Empleos directos del proyecto<input data-f="jobs" type="number" min="0" step="50" value="${p.jobs}" class="proj-input"></label>`;
+                if (p.type === "dens") params = `
+                    <label>Radio (m)<input data-f="radius" type="number" min="100" step="50" value="${p.radius}" class="proj-input"></label>
+                    <label>m² adicionales<input data-f="area" type="number" min="0" step="1000" value="${p.area}" class="proj-input"></label>
+                    <label>m² por empleo<input data-f="m2job" type="number" min="1" step="1" value="${p.m2job}" class="proj-input"></label>
+                    <div class="text-violet-700 self-end">= ${fmt(p.m2job > 0 ? p.area / p.m2job : 0)} empleos</div>`;
+                if (p.type === "via") params = `
+                    <label class="col-span-2">Clase de la vía<select data-f="clase" class="proj-input">${CLASES.map(c => `<option value="${c.id}" ${c.id === p.clase ? "selected" : ""}>${c.label}</option>`).join("")}</select></label>`;
+                return `
+                <div data-id="${p.id}" class="bg-white border ${p.active ? "border-violet-300" : "border-slate-200 opacity-60"} rounded-lg p-2 space-y-1.5">
+                    <div class="flex items-center gap-1.5">
+                        <input data-f="active" type="checkbox" ${p.active ? "checked" : ""} title="Activar / desactivar" class="rounded border-slate-300">
+                        <input data-f="name" type="text" value="${esc(p.name)}" class="flex-1 min-w-0 font-semibold text-violet-900 bg-transparent border-b border-transparent focus:border-violet-300 outline-none">
+                        <button data-act="zoom" title="Ver en el mapa" class="w-6 h-6 rounded hover:bg-violet-100 text-violet-700"><i class="fa-solid fa-location-crosshairs"></i></button>
+                        <button data-act="del" title="Eliminar" class="w-6 h-6 rounded hover:bg-red-50 text-red-600"><i class="fa-solid fa-trash"></i></button>
+                    </div>
+                    <div class="grid grid-cols-2 gap-1.5 text-[10px] text-slate-600">${params}</div>
+                </div>`;
+            }).join("") || `<p class="text-[10px] text-slate-500">Aún no hay proyectos. Elige un tipo y presiona <b>Ubicar</b>.</p>`;
+        }
+
+        let editTimer = null;
+        const simulateSoon = () => { clearTimeout(editTimer); editTimer = setTimeout(simulate, 500); };
+        $("proj-list").addEventListener("change", e => {
+            const card = e.target.closest("[data-id]"); if (!card) return;
+            const p = projects.find(q => q.id === +card.dataset.id), f = e.target.dataset.f;
+            if (!p || !f) return;
+            if (f === "active") p.active = e.target.checked;
+            else if (f === "name") p.name = e.target.value.trim() || p.name;
+            else if (f === "clase") p.clase = e.target.value;
+            else { const v = parseFloat(e.target.value); if (Number.isFinite(v) && v >= 0) p[f] = v; }
+            renderProjects(); drawProjects();
+            if (f !== "name") simulateSoon(); else updateIndicators();
+        });
+        $("proj-list").addEventListener("click", e => {
+            const btn = e.target.closest("[data-act]"); if (!btn) return;
+            const card = btn.closest("[data-id]"), idx = projects.findIndex(q => q.id === +card.dataset.id);
+            if (idx < 0) return;
+            const p = projects[idx];
+            if (btn.dataset.act === "del") { projects.splice(idx, 1); renderProjects(); drawProjects(); simulate(); }
+            if (btn.dataset.act === "zoom") {
+                const target = p.type === "via"
+                    ? { type: "polyline", paths: p.geom.paths, spatialReference: { wkid: 102100 } }
+                    : { type: "point", x: p.geom.x, y: p.geom.y, spatialReference: { wkid: 102100 } };
+                view.goTo({ target, zoom: p.type === "via" ? undefined : 14 }).catch(() => {});
+            }
+        });
+        renderProjects();
+
         // ---------- Gráficos ----------
         Chart.defaults.font.size = 9;
         Chart.defaults.color = "#64748b";
         const chartDistrict = new Chart($("chart-district"), {
             type: "bar",
-            data: { labels: [], datasets: [
-                { label: "Tendencial", data: [], backgroundColor: "#cbd5e1", borderRadius: 4 },
-                { label: "Escenario", data: [], backgroundColor: "#e11d48", borderRadius: 4 }] },
-            options: { responsive: true, maintainAspectRatio: false, indexAxis: "y",
-                plugins: { legend: { position: "bottom", labels: { boxWidth: 10 } } },
-                scales: { x: { ticks: { callback: v => fmt(v) } }, y: { grid: { display: false } } } }
+            data: { labels: [], datasets: [{ label: "Referencia", data: [], backgroundColor: "#cbd5e1", borderRadius: 4 }, { label: "Escenario", data: [], backgroundColor: "#e11d48", borderRadius: 4 }] },
+            options: { responsive: true, maintainAspectRatio: false, indexAxis: "y", plugins: { legend: { position: "bottom", labels: { boxWidth: 10 } } }, scales: { x: { ticks: { callback: v => fmt(v) } }, y: { grid: { display: false } } } }
         });
         const chartGrowth = new Chart($("chart-growth"), {
             type: "line",
-            data: { labels: [], datasets: [{ label: "Empleo total", data: [], borderColor: "#e11d48", backgroundColor: "rgba(225,29,72,0.08)", fill: true, tension: 0.2, pointRadius: 2 }] },
-            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { ticks: { callback: v => fmt(v) } } } }
+            data: { labels: [], datasets: [
+                { label: "Crecimiento (g)", data: [], borderColor: "#e11d48", backgroundColor: "rgba(225,29,72,0.08)", fill: true, tension: 0.2, pointRadius: 1.5 },
+                { label: "+ empleos de proyectos", data: [], borderColor: "#7c3aed", borderDash: [4, 3], fill: false, tension: 0.2, pointRadius: 0 }] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: "bottom", labels: { boxWidth: 10 } } }, scales: { y: { ticks: { callback: v => fmt(v) } } } }
         });
         const chartHist = new Chart($("chart-hist"), {
             type: "bar",
             data: { labels: [], datasets: [{ label: "Manzanas", data: [], backgroundColor: ["#e2e8f0", "#fee5d9", "#fcbba1", "#fc9272", "#fb6a4a", "#de2d26", "#a50f15", "#1f2937"], borderRadius: 4 }] },
             options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false } }, y: { ticks: { callback: v => fmt(v) } } } }
         });
-
         function updateHistogram(thr) {
             const bins = [0, 0, 0, 0, 0, 0, 0, 0];
             for (let j = 0; j < D.n; j++) {
                 const v = D.raw[j];
-                if (Number.isNaN(v)) bins[0]++;
-                else if (v > thr) bins[7]++;
-                else if (v <= 0) bins[1]++;
-                else if (v <= 5) bins[2]++;
-                else if (v <= 20) bins[3]++;
-                else if (v <= 100) bins[4]++;
-                else if (v <= 500) bins[5]++;
-                else bins[6]++;
+                if (Number.isNaN(v)) bins[0]++; else if (v > thr) bins[7]++; else if (v <= 0) bins[1]++; else if (v <= 5) bins[2]++;
+                else if (v <= 20) bins[3]++; else if (v <= 100) bins[4]++; else if (v <= 500) bins[5]++; else bins[6]++;
             }
-            chartHist.data.labels = ["Sin dato", "0", "1–5", "6–20", "21–100", "101–500", `501–${fmt(thr)}`, `> ${fmt(thr)} (excluidas)`];
+            chartHist.data.labels = ["Sin dato", "0", "1–5", "6–20", "21–100", "101–500", `501–${fmt(thr)}`, `> ${fmt(thr)} (excl.)`];
             chartHist.data.datasets[0].data = bins;
             chartHist.update();
         }
 
         // ---------- Capa de resultados ----------
         const FIELD_LABEL = {
-            BASE: "Empleos actuales (CENEC depurado)", PROY: "Empleos proyectados (escenario)",
-            NUEVO: "Empleos nuevos (escenario)", DIF: "Diferencia vs tendencial"
+            BASE: "Empleos actuales", PROY: "Empleos proyectados", NUEVO: "Empleos nuevos",
+            DIF: "Diferencia de empleos vs referencia", VALOR: "Valor de suelo estimado", DVALOR: "Cambio del valor de suelo vs referencia"
         };
-
         async function buildResultLayer() {
             const graphics = [];
             for (let j = 0; j < D.n; j++) {
                 if (!R.used[j]) continue;
                 graphics.push(new Graphic({
                     geometry: { type: "point", x: D.X[j], y: D.Y[j], spatialReference: { wkid: 102100 } },
-                    attributes: { OID: graphics.length + 1, IDX: j, BASE: R.E[j], PROY: R.E[j] + R.newS[j], NUEVO: R.newS[j], DIF: R.dif[j] }
+                    attributes: { OID: graphics.length + 1, IDX: j, BASE: R.E[j], PROY: R.E[j] + R.newS1[j], NUEVO: R.newS1[j], DIF: R.dif[j],
+                        VALOR: R.priceS1 ? R.priceS1[j] : 0, DVALOR: R.dval ? R.dval[j] * 100 : 0 }
                 }));
             }
             const layer = new FeatureLayer({
-                source: graphics, title: "Resultado del modelo", objectIdField: "OID", geometryType: "point",
-                spatialReference: { wkid: 102100 }, popupEnabled: false,
-                fields: [
-                    { name: "OID", type: "oid" }, { name: "IDX", type: "integer" },
-                    { name: "BASE", type: "double" }, { name: "PROY", type: "double" },
-                    { name: "NUEVO", type: "double" }, { name: "DIF", type: "double" }]
+                source: graphics, title: "Resultado del modelo", objectIdField: "OID", geometryType: "point", spatialReference: { wkid: 102100 }, popupEnabled: false,
+                fields: [{ name: "OID", type: "oid" }, { name: "IDX", type: "integer" }, { name: "BASE", type: "double" }, { name: "PROY", type: "double" },
+                    { name: "NUEVO", type: "double" }, { name: "DIF", type: "double" }, { name: "VALOR", type: "double" }, { name: "DVALOR", type: "double" }]
             });
             if (resultLayer) map.remove(resultLayer);
             resultLayer = layer;
@@ -804,127 +1132,169 @@ window.addEventListener("DOMContentLoaded", () => {
             await applyRenderer();
         }
 
-        function quantileAbs(values, q) {
-            const a = values.filter(v => v !== 0).map(Math.abs).sort((x, y) => x - y);
-            if (!a.length) return 0;
-            return a[Math.min(a.length - 1, Math.floor(q * a.length))];
+        const quantileAbs = (vals, q) => { const a = vals.filter(v => v !== 0).map(Math.abs).sort((x, y) => x - y); return a.length ? a[Math.min(a.length - 1, Math.floor(q * a.length))] : 0; };
+        const dot = c => `<span class="inline-block w-3 h-3 rounded-full" style="background:${c}"></span>`;
+
+        function divergingRenderer(field, q, unit, decimals) {
+            const hi = q, lo = q * 0.15, tiny = q * 0.02;
+            const sym = (c, s) => new SimpleMarkerSymbol({ size: s, color: c, outline: null });
+            resultLayer.renderer = new ClassBreaksRenderer({ field, classBreakInfos: [
+                { minValue: -1e12, maxValue: -lo, symbol: sym([37, 99, 235, 0.85], 5) },
+                { minValue: -lo, maxValue: -tiny, symbol: sym([147, 197, 253, 0.8], 4) },
+                { minValue: -tiny, maxValue: tiny, symbol: sym([0, 0, 0, 0], 0) },
+                { minValue: tiny, maxValue: lo, symbol: sym([252, 146, 114, 0.85], 4) },
+                { minValue: lo, maxValue: 1e12, symbol: sym([165, 15, 21, 0.9], 5) }] });
+            return `
+                <div class="flex items-center gap-2">${dot("#a50f15")} Sube más de ${fmt(lo, decimals)}${unit}</div>
+                <div class="flex items-center gap-2">${dot("#fc9272")} Sube entre ${fmt(tiny, decimals + 1)} y ${fmt(lo, decimals)}${unit}</div>
+                <div class="flex items-center gap-2">${dot("#93c5fd")} Baja entre ${fmt(tiny, decimals + 1)} y ${fmt(lo, decimals)}${unit}</div>
+                <div class="flex items-center gap-2">${dot("#2563eb")} Baja más de ${fmt(lo, decimals)}${unit}</div>
+                <p class="text-slate-400">Cambios menores a ${fmt(tiny, decimals + 1)}${unit} no se dibujan. Referencia: ${esc(R.refLabel)}.</p>`;
         }
 
         async function applyRenderer() {
             if (!resultLayer || !R) return;
             const mode = $("view-mode").value;
             $("legend-title").textContent = `Leyenda · ${FIELD_LABEL[mode]}`;
+            const usedVals = f => { const v = []; for (let j = 0; j < D.n; j++) if (R.used[j]) v.push(f(j)); return v; };
 
-            if (mode === "DIF") {
-                const difs = [];
-                for (let j = 0; j < D.n; j++) if (R.used[j]) difs.push(R.dif[j]);
-                const q = quantileAbs(difs, 0.95);
-                if (q === 0) {
-                    resultLayer.renderer = new SimpleRenderer({ symbol: new SimpleMarkerSymbol({ size: 0, color: [0, 0, 0, 0], outline: null }) });
-                    $("legend-body").innerHTML = `<p>Sin diferencias: en este escenario la cercanía a las vías no influye (β = 0 o sin clases viales activas), así que el resultado es igual al tendencial.</p>`;
-                    return;
-                }
-                const hi = q, lo = q * 0.15, tiny = q * 0.02;
-                const sym = (c, s) => new SimpleMarkerSymbol({ size: s, color: c, outline: null });
-                resultLayer.renderer = new ClassBreaksRenderer({
-                    field: "DIF",
-                    classBreakInfos: [
-                        { minValue: -1e12, maxValue: -lo, symbol: sym([37, 99, 235, 0.85], 5), label: "Pierde (fuerte)" },
-                        { minValue: -lo, maxValue: -tiny, symbol: sym([147, 197, 253, 0.8], 4), label: "Pierde" },
-                        { minValue: -tiny, maxValue: tiny, symbol: sym([0, 0, 0, 0], 0), label: "Sin cambio" },
-                        { minValue: tiny, maxValue: lo, symbol: sym([252, 146, 114, 0.85], 4), label: "Gana" },
-                        { minValue: lo, maxValue: 1e12, symbol: sym([165, 15, 21, 0.9], 5), label: "Gana (fuerte)" }]
-                });
-                $("legend-body").innerHTML = `
-                    <p>Empleos nuevos que cada manzana <b>gana</b> o <b>pierde</b> por efecto de las vías, comparado con el tendencial.</p>
-                    <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full" style="background:#a50f15"></span> Gana más de ${fmt(lo, 1)}</div>
-                    <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full" style="background:#fc9272"></span> Gana entre ${fmt(tiny, 2)} y ${fmt(lo, 1)}</div>
-                    <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full" style="background:#93c5fd"></span> Pierde entre ${fmt(tiny, 2)} y ${fmt(lo, 1)}</div>
-                    <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full" style="background:#2563eb"></span> Pierde más de ${fmt(lo, 1)}</div>
-                    <p class="text-slate-400">Los valores son por manzana. Entre ${fmt(-tiny, 2)} y ${fmt(tiny, 2)} no se dibuja.</p>`;
+            if ((mode === "VALOR" || mode === "DVALOR") && !R.hed) {
+                resultLayer.renderer = new SimpleRenderer({ symbol: new SimpleMarkerSymbol({ size: 0, color: [0, 0, 0, 0], outline: null }) });
+                $("legend-body").innerHTML = "<p>El modelo de valor de suelo no está disponible (no se pudieron cargar suficientes registros de VALOR_DE_SUELO).</p>";
                 return;
             }
-
-            // Mapa de calor ponderado por el campo elegido
+            if (mode === "DIF" || mode === "DVALOR") {
+                const isVal = mode === "DVALOR";
+                const q = quantileAbs(usedVals(j => isVal ? R.dval[j] * 100 : R.dif[j]), 0.95);
+                if (q === 0) {
+                    resultLayer.renderer = new SimpleRenderer({ symbol: new SimpleMarkerSymbol({ size: 0, color: [0, 0, 0, 0], outline: null }) });
+                    $("legend-body").innerHTML = `<p>Sin diferencias frente a la referencia (${esc(R.refLabel)}). Activa un escenario vial con β &gt; 0, agrega un proyecto o cambia la referencia.</p>`;
+                    return;
+                }
+                const intro = isVal
+                    ? `<p>Cambio del valor de suelo estimado en ${R.P.year} frente a la referencia.</p>`
+                    : `<p>Empleos nuevos que cada manzana gana o pierde frente a la referencia.</p>`;
+                $("legend-body").innerHTML = intro + divergingRenderer(mode, q, isVal ? " %" : " empleos", isVal ? 1 : 1);
+                return;
+            }
+            if (mode === "VALOR") {
+                const v = usedVals(j => R.priceS1[j]).sort((a, b) => a - b);
+                const qs = [0.2, 0.4, 0.6, 0.8].map(q => v[Math.floor(q * v.length)]);
+                const cols = [[254, 243, 199], [253, 224, 71], [245, 158, 11], [217, 119, 6], [146, 64, 14]];
+                const edges = [0, ...qs, 1e12];
+                resultLayer.renderer = new ClassBreaksRenderer({ field: "VALOR", classBreakInfos: cols.map((c, i) => ({ minValue: edges[i], maxValue: edges[i + 1], symbol: new SimpleMarkerSymbol({ size: 4, color: [...c, 0.9], outline: null }) })) });
+                $("legend-body").innerHTML = cols.map((c, i) => `<div class="flex items-center gap-2">${dot(`rgb(${c.join(",")})`)} ${i === 0 ? "Menos de" : i === 4 ? "Más de" : ""} S/ ${fmt(i === 4 ? edges[4] : edges[i + 1])}${i > 0 && i < 4 ? ` (desde S/ ${fmt(edges[i])})` : ""} por m²</div>`).join("")
+                    + `<p class="text-slate-400">Estimado con el modelo hedónico para ${R.P.year} (escenario con proyectos). Cada color agrupa 20% de las manzanas.</p>`;
+                return;
+            }
             try {
                 const { renderer } = await heatmapCreator.createRenderer({ layer: resultLayer, view, field: mode });
-                renderer.colorStops = [
-                    { ratio: 0, color: [255, 255, 255, 0] },
-                    { ratio: 0.08, color: [254, 229, 217, 0.55] },
-                    { ratio: 0.3, color: [252, 146, 114, 0.8] },
-                    { ratio: 0.6, color: [222, 45, 38, 0.9] },
-                    { ratio: 1, color: [103, 0, 13, 1] }];
+                renderer.colorStops = [{ ratio: 0, color: [255, 255, 255, 0] }, { ratio: 0.08, color: [254, 229, 217, 0.55] }, { ratio: 0.3, color: [252, 146, 114, 0.8] }, { ratio: 0.6, color: [222, 45, 38, 0.9] }, { ratio: 1, color: [103, 0, 13, 1] }];
                 resultLayer.renderer = renderer;
             } catch (err) {
                 console.error("No se pudo crear el mapa de calor:", err);
                 resultLayer.renderer = new SimpleRenderer({ symbol: new SimpleMarkerSymbol({ size: 3, color: [225, 29, 72, 0.6], outline: null }) });
             }
-            const totals = { BASE: R.Etot, PROY: R.Etot + R.dE, NUEVO: R.dE };
+            const totals = { BASE: R.Etot, PROY: R.Etot + R.dE + R.Dtot, NUEVO: R.dE + R.Dtot };
             $("legend-body").innerHTML = `
                 <div class="h-2.5 rounded" style="background:linear-gradient(90deg,rgba(254,229,217,.6),#fc9272,#de2d26,#67000d)"></div>
                 <div class="flex justify-between text-slate-400"><span>menor concentración</span><span>mayor</span></div>
-                <p>Cada manzana aporta su valor de <b>${mode}</b> (total: ${fmt(totals[mode])} empleos). La intensidad depende de la escala del mapa.</p>`;
+                <p>Mapa de calor ponderado por ${FIELD_LABEL[mode].toLowerCase()} (total: ${fmt(totals[mode])}). La intensidad depende de la escala del mapa.</p>`;
         }
         $("view-mode").addEventListener("change", applyRenderer);
 
         // ---------- Indicadores ----------
         function updateIndicators() {
+            if (!R) return;
             const P = R.P;
-            $("top-scenario").textContent = P.scenarioName;
+            $("top-scenario").textContent = P.scenarioName + (R.projStats.length ? ` + ${R.projStats.length} proy.` : "");
             $("top-base").textContent = fmt(R.Etot);
-            $("top-proj").textContent = fmt(R.Etot + R.dE);
+            $("top-proj").textContent = fmt(R.Etot + R.dE + R.Dtot);
             $("top-year").textContent = P.year;
-
             $("k-base").textContent = fmt(R.Etot);
             $("k-base-sub").textContent = `Año base ${P.baseYear} · ${fmt(R.nUsed)} manzanas`;
-            $("k-new").textContent = `+${fmt(R.dE)}`;
-            $("k-new-sub").textContent = `${R.years} años al ${(P.g * 100).toFixed(1)}%/año → ${fmt(R.Etot + R.dE)} en ${P.year}`;
+            $("k-new").textContent = `+${fmt(R.dE + R.Dtot)}`;
+            $("k-new-sub").textContent = `${fmt(R.dE)} por crecimiento (${(P.g * 100).toFixed(1)}%/año, ${R.years} años)` + (R.Dtot > 0 ? ` + ${fmt(R.Dtot)} directos de proyectos` : "");
 
-            if (R.hasRoads) {
-                $("k-near").innerHTML = `${fmt(R.nearShareS * 100, 1)}% <span class="font-normal text-slate-500 text-[10px]">(tendencial ${fmt(R.nearShareT * 100, 1)}%)</span>`;
+            // Proyectos
+            $("card-proj").classList.toggle("hidden", !R.projStats.length);
+            $("k-proj-ref").textContent = `(vs ${R.refLabel})`;
+            $("k-proj").innerHTML = R.projStats.map(s => `
+                <div class="bg-white/80 border border-violet-100 rounded-lg p-2">
+                    <div class="font-semibold text-violet-900">${esc(s.p.name)}</div>
+                    <div class="grid grid-cols-3 gap-1 text-[10px] mt-1">
+                        <div><span class="text-slate-500 block">Empleos directos</span><b>${fmt(s.direct)}</b></div>
+                        <div><span class="text-slate-500 block">Δ empleos ${esc(s.zoneLabel || "")}</span><b class="${s.zoneJobs >= 0 ? "text-rose-600" : "text-blue-600"}">${s.zoneJobs >= 0 ? "+" : ""}${fmt(s.zoneJobs)}</b></div>
+                        <div><span class="text-slate-500 block">Δ valor de suelo</span><b class="text-amber-700">${s.zoneVal == null ? "—" : pct(s.zoneVal)}</b></div>
+                    </div>
+                </div>`).join("");
+
+            const hasRoads = R.activeRoads.length || R.newRoads.length;
+            if (hasRoads && R.hasDist) {
+                $("k-near").innerHTML = `${fmt(R.nearShareS1 * 100, 1)}% <span class="font-normal text-slate-500 text-[10px]">(ref. ${fmt(R.nearShareRef * 100, 1)}%)</span>`;
                 $("k-moved").textContent = fmt(R.moved);
-                $("k-dist").textContent = `Distancia media de los empleos a una vía activa: ${fmt(R.meanDistBase, 0)} m hoy → ${fmt(R.meanDistProj, 0)} m en ${P.year}. Hoy, el ${fmt(R.nearShareBase * 100, 1)}% de los empleos está a ≤ 1 km.`;
+                $("k-dist").textContent = `Distancia media de los empleos a una vía activa: ${fmt(R.meanDistBase)} m hoy → ${fmt(R.meanDistProj)} m en ${P.year}. Hoy, el ${fmt(R.nearShareBase * 100, 1)}% de los empleos está a ≤ 1 km.`;
             } else {
-                $("k-near").textContent = "—"; $("k-moved").textContent = "0";
-                $("k-dist").textContent = "Escenario sin clases viales activas: la distribución es igual a la tendencial.";
+                $("k-near").textContent = "—"; $("k-moved").textContent = fmt(R.moved);
+                $("k-dist").textContent = "Sin vías activas en el escenario: la distancia vial no influye en la localización.";
+            }
+
+            // Valor de suelo
+            if (D.soilMedian) { $("k-soil").textContent = `S/ ${fmt(D.soilMedian)}/m²`; $("k-soil-sub").textContent = `${fmt(D.soil.length)} registros reales`; }
+            if (R.hed) {
+                const h = R.hed, s = R.priceStats;
+                $("k-val").textContent = `S/ ${fmt(s.meanS1)}/m²`;
+                $("k-val-sub").textContent = `hoy S/ ${fmt(s.meanBase)} · ${pct(s.meanS1 / s.meanBase - 1)} al ${P.year} · ${pct(s.meanS1 / s.meanRef - 1, 2)} vs ref.`;
+                const sig = t => Math.abs(t) >= 2 ? "" : ` <span class="text-red-600">(no significativo, |t| &lt; 2)</span>`;
+                $("k-hed").innerHTML = `
+                    <div class="font-semibold text-slate-700">Modelo hedónico estimado con ${fmt(h.n)} registros (R² = ${fmt(h.R2, 2)})</div>
+                    <div class="font-mono">ln(S/m²) = ${fmt(h.b[0], 3)} ${h.b[1] >= 0 ? "+" : "−"} ${fmt(Math.abs(h.b[1]), 3)}·d<sub>km</sub> ${h.b[2] >= 0 ? "+" : "−"} ${fmt(Math.abs(h.b[2]), 3)}·ln(1+J)</div>
+                    <div>• Cada km más lejos de una vía: precio ${pct(Math.exp(h.b[1]) - 1)} (t = ${fmt(h.t[1], 1)})${sig(h.t[1])}</div>
+                    <div>• Duplicar los empleos a ≤ 1 km: precio ${pct(Math.pow(2, h.b[2]) - 1)} (t = ${fmt(h.t[2], 1)})${sig(h.t[2])}</div>
+                    <div class="text-slate-400">R² indica qué parte de la variación de precios explica el modelo (0 = nada, 1 = todo).</div>`;
+            } else {
+                $("k-val").textContent = "No disponible";
+                $("k-val-sub").textContent = "";
+                $("k-hed").textContent = "No se pudo estimar el modelo de valor de suelo (faltan registros de VALOR_DE_SUELO).";
             }
 
             $("k-blocks").textContent = `${fmt(R.nUsed)} manzanas`;
             $("k-blocks-sub").textContent = `${fmt(R.nExcl)} excluidas por EMP_TOTAL > ${fmt(P.thr)} · ${fmt(R.nNull)} sin dato (= 0)`;
 
-            const names = Object.keys(D.districtNames);
-            const order = names.sort((a, b) => R.byDist[b].newS - R.byDist[a].newS);
-            chartDistrict.data.labels = order.map(u => D.districtNames[u]);
-            chartDistrict.data.datasets[0].data = order.map(u => Math.round(R.byDist[u].newT));
-            chartDistrict.data.datasets[1].data = order.map(u => Math.round(R.byDist[u].newS));
+            const names = Object.keys(D.districtNames).sort((a, b) => R.byDist[b].s1 - R.byDist[a].s1);
+            chartDistrict.data.labels = names.map(u => D.districtNames[u]);
+            chartDistrict.data.datasets[0].label = `Referencia (${R.refLabel})`;
+            chartDistrict.data.datasets[0].data = names.map(u => Math.round(R.byDist[u].ref));
+            chartDistrict.data.datasets[1].data = names.map(u => Math.round(R.byDist[u].s1));
             chartDistrict.update();
 
-            const labels = [], data = [];
+            const labels = [], data = [], dataP = [];
             for (let y = P.baseYear; y <= Math.max(P.year, P.baseYear); y++) {
                 labels.push(String(y));
-                data.push(Math.round(R.Etot * Math.pow(1 + P.g, y - P.baseYear)));
+                const v = R.Etot * Math.pow(1 + P.g, y - P.baseYear);
+                data.push(Math.round(v)); dataP.push(R.Dtot > 0 ? Math.round(v + R.Dtot) : null);
             }
             chartGrowth.data.labels = labels;
             chartGrowth.data.datasets[0].data = data;
+            chartGrowth.data.datasets[1].data = dataP;
             chartGrowth.update();
-
             updateHistogram(P.thr);
         }
 
         // ---------- Ejecutar ----------
-        let running = false;
+        let running = false, pending = false;
         async function simulate() {
-            if (running || !D.n) return;
+            if (!D.n) return;
+            if (running) { pending = true; return; }
             running = true;
             $("btn-run").disabled = true;
             status("Calculando...");
             try {
                 const P = readParams();
                 if (!(P.thr > 0) || !Number.isFinite(P.baseYear)) throw new Error("Revisa el año base y el umbral.");
-                await new Promise(r => setTimeout(r, 30));   // deja que se pinte el estado
-                R = runModel(P);
-                // Control de calidad: los empleos repartidos deben sumar exactamente ΔE
-                if (Math.abs(R.checkSum - R.dE) > Math.max(1, R.dE * 1e-9)) throw new Error("Control de suma fallido");
+                await new Promise(r => setTimeout(r, 30));
+                R = runModel(P, projects);
+                if (Math.abs(R.checkSum - R.expectedSum) > Math.max(1, R.expectedSum * 1e-9)) throw new Error("Control de suma fallido");
                 updateRoadFilter(P);
                 updateIndicators();
                 await buildResultLayer();
@@ -936,32 +1306,32 @@ window.addEventListener("DOMContentLoaded", () => {
             } finally {
                 running = false;
                 $("btn-run").disabled = false;
+                if (pending) { pending = false; simulate(); }
             }
         }
-
         $("btn-run").addEventListener("click", simulate);
         $("scenario").addEventListener("change", e => { applyScenarioPreset(e.target.value); simulate(); });
-        const toCustom = () => { $("scenario").value = "custom"; };
-        $("p-beta").addEventListener("input", toCustom);
-        $("road-classes").addEventListener("change", () => { toCustom(); simulate(); });
-        ["p-year", "p-growth", "p-beta", "p-alpha", "p-baseyear", "p-thr"].forEach(id => $(id).addEventListener("change", simulate));
+        $("ref-mode").addEventListener("change", simulate);
+        $("p-beta").addEventListener("input", () => { $("scenario").value = "custom"; });
+        $("road-classes").addEventListener("change", () => { $("scenario").value = "custom"; simulate(); });
+        ["p-year", "p-growth", "p-beta", "p-alpha", "p-gamma", "p-baseyear", "p-thr"].forEach(id => $(id).addEventListener("change", simulate));
 
         // ---------- CSV ----------
         $("btn-csv").addEventListener("click", () => {
             if (!R) return;
-            const rows = [["IDMANZANA", "UBIGEO", "DISTRITO", "EMP_TOTAL_ORIGINAL", "EXCLUIDA", "EMP_BASE", "DIST_VIA_M", "VIA_CERCANA", "CLASE_VIA",
-                "NUEVOS_TENDENCIAL", "NUEVOS_ESCENARIO", "PROYECTADO_ESCENARIO", "DIFERENCIA"].join(",")];
+            const q = s => `"${String(s ?? "").replace(/"/g, '""')}"`;
+            const num = (v, d) => (v == null || !Number.isFinite(v)) ? "" : v.toFixed(d);
+            const rows = [["IDMANZANA", "UBIGEO", "DISTRITO", "EMP_TOTAL_ORIGINAL", "EXCLUIDA", "EMP_BASE", "EMPLEOS_1KM_BASE", "DIST_VIA_M", "VIA_CERCANA",
+                "EMP_DIRECTOS_PROYECTOS", "NUEVOS_REFERENCIA", "NUEVOS_ESCENARIO", "PROYECTADO_ESCENARIO", "DIFERENCIA",
+                "VALOR_SUELO_HOY", "VALOR_SUELO_REF", "VALOR_SUELO_ESCENARIO", "CAMBIO_VALOR_VS_REF_PCT", "REFERENCIA"].join(",")];
             for (let j = 0; j < D.n; j++) {
-                const road = R.nearRoad[j] >= 0 ? D.roads[R.nearRoad[j]] : null;
-                const q = s => `"${String(s ?? "").replace(/"/g, '""')}"`;
-                rows.push([
-                    q(D.ids[j]), q(D.ubigeo[j]), q(D.districtNames[D.ubigeo[j]]),
+                const u = R.used[j];
+                rows.push([q(D.ids[j]), q(D.ubigeo[j]), q(D.districtNames[D.ubigeo[j]]),
                     Number.isNaN(D.raw[j]) ? "" : D.raw[j], R.excluded[j] ? 1 : 0,
-                    R.used[j] ? R.E[j] : "", Number.isFinite(R.dist[j]) ? R.dist[j].toFixed(0) : "",
-                    q(road ? road.name : ""), q(road ? road.clase : ""),
-                    R.used[j] ? R.newT[j].toFixed(4) : "", R.used[j] ? R.newS[j].toFixed(4) : "",
-                    R.used[j] ? (R.E[j] + R.newS[j]).toFixed(4) : "", R.used[j] ? R.dif[j].toFixed(4) : ""
-                ].join(","));
+                    u ? R.E[j] : "", u ? num(R.Jb[j], 0) : "", u ? num(R.dist[j], 0) : "", q(u ? roadLabel(j) : ""),
+                    u ? num(R.Dd[j], 2) : "", u ? num(R.ref[j], 4) : "", u ? num(R.newS1[j], 4) : "", u ? num(R.E[j] + R.newS1[j], 4) : "", u ? num(R.dif[j], 4) : "",
+                    u && R.priceBase ? num(R.priceBase[j], 0) : "", u && R.priceRef ? num(R.priceRef[j], 0) : "", u && R.priceS1 ? num(R.priceS1[j], 0) : "",
+                    u && R.dval ? num(R.dval[j] * 100, 3) : "", q(R.refLabel)].join(","));
             }
             const blob = new Blob(["﻿" + rows.join("\n")], { type: "text/csv;charset=utf-8" });
             const a = document.createElement("a");
@@ -971,16 +1341,22 @@ window.addEventListener("DOMContentLoaded", () => {
             setTimeout(() => URL.revokeObjectURL(a.href), 2000);
         });
 
+        function roadLabel(j) {
+            if (!Number.isFinite(R.dist[j])) return "";
+            if (R.nearKind[j] === 1) { const r = R.newRoads[R.nearN[j]]; return r ? `${r.name} (vía nueva)` : ""; }
+            const r = R.activeRoads[R.nearA[j]];
+            return r ? `${r.name} (${r.clase})` : "";
+        }
+
         // ---------- Clic en una manzana ----------
         const indexById = new globalThis.Map();
         view.on("click", async evt => {
-            if (!R) return;
+            if (!R || drawing) return;
             const hit = await view.hitTest(evt, { include: [manzanasLayer] });
             const g = hit.results.find(r => r.graphic && r.graphic.layer === manzanasLayer)?.graphic;
             if (!g) return;
             const j = indexById.get(g.attributes.IDMANZANA);
             if (j == null) return;
-            const road = R.nearRoad[j] >= 0 ? D.roads[R.nearRoad[j]] : null;
             const raw = Number.isNaN(D.raw[j]) ? "sin dato" : fmt(D.raw[j]);
             let body;
             if (R.excluded[j]) {
@@ -989,70 +1365,77 @@ window.addEventListener("DOMContentLoaded", () => {
             } else {
                 body = `
                     <tr><td>EMP_TOTAL (servidor)</td><td><b>${raw}</b></td></tr>
-                    <tr><td>Vía activa más cercana</td><td>${road ? `${esc(road.name)} (${esc(road.clase)}) a <b>${fmt(R.dist[j])} m</b>` : "—"}</td></tr>
-                    <tr><td>Nuevos (tendencial)</td><td>${fmt(R.newT[j], 2)}</td></tr>
-                    <tr><td>Nuevos (escenario)</td><td>${fmt(R.newS[j], 2)}</td></tr>
-                    <tr><td>Efecto vial</td><td><b class="${R.dif[j] >= 0 ? "text-rose-600" : "text-blue-600"}">${R.dif[j] >= 0 ? "+" : ""}${fmt(R.dif[j], 2)}</b></td></tr>
-                    <tr><td>Proyectado ${R.P.year}</td><td><b>${fmt(R.E[j] + R.newS[j], 1)}</b></td></tr>`;
+                    <tr><td>Empleos a ≤ 1 km (hoy)</td><td>${fmt(R.Jb[j])}</td></tr>
+                    <tr><td>Vía activa más cercana</td><td>${Number.isFinite(R.dist[j]) ? `${esc(roadLabel(j))} a <b>${fmt(R.dist[j])} m</b>` : "—"}</td></tr>
+                    ${R.Dd[j] > 0 ? `<tr><td>Empleos directos de proyectos</td><td><b class="text-violet-700">${fmt(R.Dd[j], 1)}</b></td></tr>` : ""}
+                    <tr><td>Nuevos (referencia)</td><td>${fmt(R.ref[j], 2)}</td></tr>
+                    <tr><td>Nuevos (escenario)</td><td>${fmt(R.newS1[j], 2)}</td></tr>
+                    <tr><td>Diferencia</td><td><b class="${R.dif[j] >= 0 ? "text-rose-600" : "text-blue-600"}">${R.dif[j] >= 0 ? "+" : ""}${fmt(R.dif[j], 2)}</b></td></tr>
+                    <tr><td>Proyectado ${R.P.year}</td><td><b>${fmt(R.E[j] + R.newS1[j], 1)}</b></td></tr>
+                    ${R.priceS1 && R.priceBase[j] ? `
+                    <tr><td>Valor de suelo hoy (est.)</td><td>S/ ${fmt(R.priceBase[j])}/m²</td></tr>
+                    <tr><td>Valor ${R.P.year} (est.)</td><td><b>S/ ${fmt(R.priceS1[j])}/m²</b> (${pct(R.dval[j], 2)} vs ref.)</td></tr>` : ""}`;
             }
-            const content = `<table class="popup-table">
-                <tr><td>Distrito</td><td>${esc(D.districtNames[D.ubigeo[j]] || D.ubigeo[j])}</td></tr>${body}</table>`;
+            const content = `<table class="popup-table"><tr><td>Distrito</td><td>${esc(D.districtNames[D.ubigeo[j]] || D.ubigeo[j])}</td></tr>${body}</table>`;
             const opts = { title: `Manzana ${esc(D.ids[j])}`, content, location: evt.mapPoint };
             if (typeof view.openPopup === "function") view.openPopup(opts); else view.popup.open(opts);
         });
 
-        // ---------- Carga inicial de datos ----------
+        // ---------- Carga inicial ----------
         async function loadData() {
             try {
                 loading("Descargando nombres de distritos...", 2);
                 try {
                     const lim = await queryREST(URL_LIMITES, { where: WHERE_LN, outFields: "UBIGEO,NOMBDIST", returnGeometry: false });
-                    (lim.features || []).forEach(f => {
-                        const nm = f.attributes.NOMBDIST;
-                        if (nm && !D.districtNames[f.attributes.UBIGEO]) D.districtNames[f.attributes.UBIGEO] = nm;
-                    });
-                } catch (e) { console.warn("Nombres de distrito no disponibles, se usan los locales.", e); }
+                    (lim.features || []).forEach(f => { const nm = f.attributes.NOMBDIST; if (nm && !D.districtNames[f.attributes.UBIGEO]) D.districtNames[f.attributes.UBIGEO] = nm; });
+                } catch (e) { console.warn("Nombres de distrito no disponibles.", e); }
 
                 loading("Descargando el sistema vial propuesto...", 5);
                 const vias = await fetchAll(URL_VIAS, { where: "1=1", outFields: "nombre,clasif", returnGeometry: true, outSR: 102100 }, "OBJECTID_1");
-                D.roads = vias.features.filter(f => f.geometry && f.geometry.paths).map(f => ({
-                    name: f.attributes.nombre || "(sin nombre)", clase: f.attributes.clasif, paths: f.geometry.paths
-                }));
+                D.roads = vias.features.filter(f => f.geometry && f.geometry.paths).map(f => ({ name: f.attributes.nombre || "(sin nombre)", clase: f.attributes.clasif, paths: f.geometry.paths }));
 
-                loading("Descargando manzanas de Lima Norte...", 10);
-                const mz = await fetchAll(URL_MANZANAS, {
-                    where: WHERE_LN, outFields: "OBJECTID,IDMANZANA,UBIGEO,EMP_TOTAL,CANT_ESTAB",
-                    returnGeometry: false, returnCentroid: true, outSR: 102100
-                }, "OBJECTID", (got, total) => loading(`Descargando manzanas: ${fmt(got)} de ${fmt(total)}`, 10 + 80 * got / total));
-
+                loading("Descargando manzanas de Lima Norte...", 8);
+                const mz = await fetchAll(URL_MANZANAS, { where: WHERE_LN, outFields: "OBJECTID,IDMANZANA,UBIGEO,EMP_TOTAL", returnGeometry: false, returnCentroid: true, outSR: 102100 },
+                    "OBJECTID", (got, total) => loading(`Descargando manzanas: ${fmt(got)} de ${fmt(total)}`, 8 + 72 * got / total));
                 const feats = mz.features.filter(f => f.centroid);
                 const n = feats.length;
                 D.n = n;
-                D.X = new Float64Array(n); D.Y = new Float64Array(n); D.cosLat = new Float64Array(n);
-                D.raw = new Float64Array(n); D.estab = new Float64Array(n);
+                D.X = new Float64Array(n); D.Y = new Float64Array(n); D.cosLat = new Float64Array(n); D.raw = new Float64Array(n);
+                D.jcx = new Int32Array(n); D.jcy = new Int32Array(n);
                 feats.forEach((f, j) => {
                     const a = f.attributes;
                     D.ids.push(a.IDMANZANA); D.ubigeo.push(a.UBIGEO);
                     D.X[j] = f.centroid.x; D.Y[j] = f.centroid.y;
-                    const lat = 2 * Math.atan(Math.exp(D.Y[j] / 6378137)) - Math.PI / 2;
-                    D.cosLat[j] = Math.cos(lat);
+                    D.cosLat[j] = Math.cos(2 * Math.atan(Math.exp(D.Y[j] / 6378137)) - Math.PI / 2);
+                    D.jcx[j] = Math.floor(D.X[j] / JCELL); D.jcy[j] = Math.floor(D.Y[j] / JCELL);
                     D.raw[j] = (a.EMP_TOTAL === null || a.EMP_TOTAL === undefined) ? NaN : Number(a.EMP_TOTAL);
-                    D.estab[j] = a.CANT_ESTAB ?? 0;
                     indexById.set(a.IDMANZANA, j);
                 });
-                if (n < mz.count) console.warn(`${mz.count - n} manzanas sin centroide fueron omitidas.`);
+                loading("Calculando distancias a las vías...", 82);
+                await new Promise(r => setTimeout(r, 20));
+                D.dAll = distancesTo(D.roads, D.X, D.Y, D.cosLat, null).dist;
+
+                loading("Descargando registros de valor de suelo...", 88);
+                try {
+                    const s = await fetchAll(URL_SUELO, { where: WHERE_LN + " AND SOLES_M2 > 0", outFields: "OBJECTID,SOLES_M2", returnGeometry: true, outSR: 102100 }, "OBJECTID");
+                    const pts = s.features.filter(f => f.geometry && f.attributes.SOLES_M2 > 0).map(f => {
+                        const x = f.geometry.x, y = f.geometry.y, cos = Math.cos(2 * Math.atan(Math.exp(y / 6378137)) - Math.PI / 2);
+                        return { x, y, cos, jcx: Math.floor(x / JCELL), jcy: Math.floor(y / JCELL), price: f.attributes.SOLES_M2 };
+                    });
+                    const dd = distancesTo(D.roads, pts.map(p => p.x), pts.map(p => p.y), pts.map(p => p.cos), null).dist;
+                    pts.forEach((p, i) => p.dAll = dd[i]);
+                    D.soil = pts;
+                    const v = pts.map(p => p.price).sort((a, b) => a - b);
+                    D.soilMedian = v.length ? (v.length % 2 ? v[(v.length - 1) / 2] : (v[v.length / 2 - 1] + v[v.length / 2]) / 2) : null;
+                } catch (e) { console.warn("Valor de suelo no disponible", e); }
 
                 loading("Calculando...", 95);
                 $("loading").classList.add("hidden");
                 $("btn-run").disabled = false;
+                $("btn-add-proj").disabled = false;
                 applyScenarioPreset("completo");
                 await simulate();
-
-                // Zoom a Lima Norte
                 limitesLayer.queryExtent().then(r => { if (r.extent) view.goTo(r.extent.expand(1.05)); }).catch(() => {});
-
-                // Valor de suelo observado (dato real, solo descriptivo)
-                loadSoil();
             } catch (err) {
                 console.error(err);
                 loading(`No se pudieron cargar los datos: ${err.message}. Revisa tu conexión a internet y recarga la página.`, 0);
@@ -1060,21 +1443,6 @@ window.addEventListener("DOMContentLoaded", () => {
                 status("Error de datos", "error");
             }
         }
-
-        async function loadSoil() {
-            try {
-                const s = await fetchAll(URL_SUELO, { where: WHERE_LN + " AND SOLES_M2 > 0", outFields: "OBJECTID,SOLES_M2", returnGeometry: false }, "OBJECTID");
-                const v = s.features.map(f => f.attributes.SOLES_M2).filter(x => x > 0).sort((a, b) => a - b);
-                if (!v.length) { $("k-soil").textContent = "Sin registros"; $("k-soil-sub").textContent = "en Lima Norte"; return; }
-                const median = v.length % 2 ? v[(v.length - 1) / 2] : (v[v.length / 2 - 1] + v[v.length / 2]) / 2;
-                $("k-soil").textContent = `S/ ${fmt(median)} por m²`;
-                $("k-soil-sub").textContent = `mediana de ${fmt(v.length)} registros (dato observado, no proyectado)`;
-            } catch (e) {
-                console.warn("Valor de suelo no disponible", e);
-                $("k-soil").textContent = "No disponible";
-            }
-        }
-
         view.when(loadData);
     });
 });
