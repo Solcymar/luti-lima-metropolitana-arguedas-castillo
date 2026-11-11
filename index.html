@@ -115,7 +115,7 @@
                         </div>
                         <div>
                             <h4 class="font-bold text-slate-900 mb-1">B. Valor de suelo (regresión hedónica, Rosen 1974)</h4>
-                            <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 font-mono text-[11px] text-slate-800">ln(S/ por m²) = b<sub>0</sub> + b<sub>1</sub>·d<sub>km</sub> + b<sub>2</sub>·ln(1 + J)</div>
+                            <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 font-mono text-[11px] text-slate-800">ln(S/ por m²) = b<sub>0</sub> + b<sub>1</sub>·d<sub>km</sub> + b<sub>2</sub>·ln(1 + J) + estrato + densidad + distrito + tipo de inmueble + ln(área)</div>
                             <p class="mt-1">Se estima por mínimos cuadrados con los registros reales de la capa VALOR_DE_SUELO (se descarta el 1% más alto y el 1% más bajo). d: distancia a cualquier vía del sistema propuesto. Para el horizonte se recalculan d (si hay vías nuevas) y J (con los empleos proyectados).</p>
                         </div>
                         <div>
@@ -134,8 +134,8 @@
                         </div>
                         <div>
                             <h4 class="font-bold text-slate-900 mb-1">E. Viajes atraídos (regresión, validación "dejando una fuera")</h4>
-                            <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 font-mono text-[11px] text-slate-800">Viajes atraídos<sub>z</sub> = a + b·Empleos<sub>z</sub> + c·Población<sub>z</sub></div>
-                            <p class="mt-1">Se calibra con las zonas de tránsito de la capa 3_Movilidad (fuente: modelo ATU) que caen en Lima Norte. Cada zona se predice con un modelo que no la vio. Ojo: los viajes de la ATU son resultados de otro modelo, no conteos directos.</p>
+                            <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 font-mono text-[11px] text-slate-800">Viajes atraídos<sub>z</sub> = a + b·Empleos<sub>z</sub> + c·ha comercio + d·ha enseñanza + e·ha servicios + f·ha industria</div>
+                            <p class="mt-1">Etapa de "atracción de viajes" del modelo de transporte de cuatro etapas (Ortúzar y Willumsen). Se calibra con las zonas de la capa 3_Movilidad (modelo ATU) en Lima Norte; las hectáreas por tipo de actividad vienen de la capa Actividades_economicas. La población no entra porque genera viajes, pero no los atrae. Cada zona se predice con un modelo que no la vio, y solo se proyecta si R² fuera de muestra ≥ 0.3. Ojo: los viajes de la ATU son resultados de otro modelo, no conteos directos.</p>
                         </div>
                         <div>
                             <h4 class="font-bold text-slate-900 mb-1">Supuestos y limitaciones</h4>
@@ -403,6 +403,7 @@ const URL_LIMITES  = `${REST}/LIMITES_INEI/FeatureServer/0`;
 const URL_SUELO    = `${REST}/VALOR_DE_SUELO/FeatureServer/0`;
 const URL_CENSO    = `${REST}/estadisticas_manzanas/FeatureServer/0`;          // tabla: población, hogares, estrato por manzana
 const URL_ZONAS    = `${REST}/3_Movilidad/FeatureServer/15`;                   // viajes generados/atraídos por zona (modelo ATU)
+const URL_ACT      = `${REST}/Actividades_economicas/FeatureServer/38`;        // actividades económicas de Lima Norte (polígonos con tipo y área)
 const HUELLAS = [                                                               // mancha urbana histórica (Plan Met 2040)
     { key: "h1985", year: 1985, url: `${REST}/Huella_AM_LimaCallao_1981/FeatureServer/8`, note: "capa 'Huella 1981', atributo ANO_EU = 1985" },
     { key: "h2003", year: 2003, url: `${REST}/Huella_AM_LimaCallao_2003/FeatureServer/9` },
@@ -659,7 +660,7 @@ function blockStaticFeatures(j, spec) {
 function estimateHedonic(sumsBase) {
     if (!D.soil || D.soil.length < 30) return null;
     const rows = D.soil.filter(s => Number.isFinite(s.dAll) && s.jb >= 0)
-        .map(s => ({ y: Math.log(s.price), d: s.dAll / 1000, J: jobsNear(sumsBase, s.jcx, s.jcy), jb: s.jb, ub: D.ubigeo[s.jb] }));
+        .map(s => ({ y: Math.log(s.price), d: s.dAll / 1000, J: jobsNear(sumsBase, s.jcx, s.jcy), jb: s.jb, ub: D.ubigeo[s.jb], tipo: s.tipo || "SIN DATO", area: s.area }));
     const ys = rows.map(r => r.y).sort((a, b) => a - b);
     const lo = ys[Math.floor(0.01 * ys.length)], hi = ys[Math.ceil(0.99 * ys.length) - 1];
     const use = rows.filter(r => r.y >= lo && r.y <= hi);
@@ -672,7 +673,21 @@ function estimateHedonic(sumsBase) {
     const names = ["Intercepto", "Distancia a vía (km)", "ln(1 + empleos ≤ 1 km)"];
     if (spec.useCensus) names.push("ln(1 + densidad pob.)", "Estrato medio bajo", "Estrato medio", "Estrato medio alto/alto", "Estrato sin dato");
     spec.distDummies.forEach(u => names.push(`Distrito: ${D.districtNames[u] || u}`));
-    const X = use.map(r => [1, r.d, Math.log1p(r.J), ...blockStaticFeatures(r.jb, spec)]);
+    spec.nStatic = blockStaticFeatures(use[0].jb, spec).length;
+
+    // Controles del aviso: tipo de inmueble y área del terreno. Evitan comparar terrenos con casas o lotes grandes con chicos.
+    // Para predecir en cada manzana se usa un "inmueble típico": el tipo más frecuente y el área mediana.
+    const tCount = {};
+    use.forEach(r => tCount[r.tipo] = (tCount[r.tipo] || 0) + 1);
+    const tipos = Object.keys(tCount).sort((a, b) => tCount[b] - tCount[a]);
+    const areas = use.map(r => r.area).filter(a => a > 0);
+    const L = { refTipo: tipos[0], tipoDummies: tipos.slice(1).filter(t => tCount[t] >= 10), useArea: areas.length >= 0.7 * use.length, medArea: median(areas) };
+    const listingFeat = r => [...(L.useArea ? [Math.log1p(r.area > 0 ? r.area : L.medArea)] : []), ...L.tipoDummies.map(t => (r.tipo === t ? 1 : 0))];
+    L.ref = listingFeat({ tipo: L.refTipo, area: L.medArea });
+    spec.listing = L;
+    if (L.useArea) names.push("ln(1 + área del terreno m²)");
+    L.tipoDummies.forEach(t => names.push(`Tipo: ${t.toLowerCase()}`));
+    const X = use.map(r => [1, r.d, Math.log1p(r.J), ...blockStaticFeatures(r.jb, spec), ...listingFeat(r)]);
     const y = use.map(r => r.y);
     const fit = ols(X, y, 1e-4);
     if (!fit) return null;
@@ -704,7 +719,10 @@ function estimateHedonic(sumsBase) {
 // Término fijo de cada manzana (censo + distrito) ya multiplicado por sus coeficientes
 function hedStatic(h) {
     const s = new Float64Array(D.n);
-    for (let j = 0; j < D.n; j++) { const f = blockStaticFeatures(j, h.spec); let v = h.b[0]; f.forEach((x, i) => v += x * h.b[3 + i]); s[j] = v; }
+    const L = h.spec.listing, off = 3 + h.spec.nStatic;
+    let listingTerm = 0;
+    if (L) L.ref.forEach((x, i) => listingTerm += x * h.b[off + i]);    // inmueble típico
+    for (let j = 0; j < D.n; j++) { const f = blockStaticFeatures(j, h.spec); let v = h.b[0] + listingTerm; f.forEach((x, i) => v += x * h.b[3 + i]); s[j] = v; }
     return s;
 }
 const hedPredict = (h, staticTerm, dMeters, J) => Math.exp(staticTerm + h.b[1] * (dMeters / 1000) + h.b[2] * Math.log1p(J));
@@ -1072,44 +1090,53 @@ function runModel(P, projects) {
     };
 }
 
-// Viajes atraídos = b0 + b1·empleos + b2·población (por zona de tránsito ATU)
+// Viajes atraídos por zona ATU = a + b·empleos + c·ha comercio + d·ha enseñanza + e·ha servicios + f·ha industria
+// (la población genera viajes pero no los atrae, por eso no entra; las actividades vienen de la capa Actividades_economicas)
+const ACT_GROUPS = ["com", "edu", "serv", "ind"];
+const ACT_LABEL = { com: "comercio y mercados", edu: "enseñanza", serv: "salud, servicios y administración", ind: "industria, transporte y otros" };
+function actGroup(tipo) {
+    const t = String(tipo || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase();
+    if (/COMERCIO|MERCADO|HOTELES|RESTAURANT|VENTA, MANTENIMIENTO/.test(t)) return "com";
+    if (/ENSENANZA/.test(t)) return "edu";
+    if (/SALUD|ADMINISTRACION PUBLICA|SERVICIOS COMUNALES|INTERMEDIACION|INMOBILIARIAS/.test(t)) return "serv";
+    return "ind";
+}
+function looCV(X, y) {
+    const ybar = y.reduce((s, v) => s + v, 0) / y.length;
+    let sse = 0, sst = 0; const ape = [];
+    y.forEach((_, k) => {
+        const f = ols(X.filter((_, t) => t !== k), y.filter((_, t) => t !== k), 1e-6);
+        const p = f ? predictRow(f.b, X[k]) : ybar;
+        sse += (y[k] - p) ** 2; sst += (y[k] - ybar) ** 2; ape.push(Math.abs(p / y[k] - 1));
+    });
+    return { r2: 1 - sse / sst, mdape: median(ape) };
+}
 function tripsModel(E, used, ref, newS1) {
     if (!D.zones || !D.blockZone) return null;
-    const Z = D.zones.length, emp = new Float64Array(Z), pop = new Float64Array(Z), empRef = new Float64Array(Z), empS1 = new Float64Array(Z), nb = new Int32Array(Z);
-    const usePop = !!D.census && D.censusMatch >= 0.3;
+    const Z = D.zones.length, emp = new Float64Array(Z), empRef = new Float64Array(Z), empS1 = new Float64Array(Z), nb = new Int32Array(Z);
     for (let j = 0; j < D.n; j++) {
         const z = D.blockZone[j];
         if (z < 0) continue;
         nb[z]++;
-        if (usePop) pop[z] += D.census.pop[j];
         if (!used[j]) continue;
         emp[z] += E[j]; empRef[z] += E[j] + ref[j]; empS1[z] += E[j] + newS1[j];
     }
     const zi = D.zones.map((z, i) => i).filter(i => nb[i] >= 3 && D.zones[i].atr > 0);
     if (zi.length < 8) return null;
-    const row = i => usePop ? [1, emp[i], pop[i]] : [1, emp[i]];
-    const X = zi.map(row), y = zi.map(i => D.zones[i].atr);
-    const fit = ols(X, y);
+    const useAct = !!D.zoneAct;
+    const row = (i, e) => useAct ? [1, e, ...ACT_GROUPS.map(g => D.zoneAct[i][g])] : [1, e];
+    const X = zi.map(i => row(i, emp[i])), y = zi.map(i => D.zones[i].atr);
+    const fit = ols(X, y, 1e-6);
     if (!fit) return null;
-    // Validación "dejando una fuera" (leave-one-out): cada zona se predice con un modelo que no la vio
-    const ybar = y.reduce((s, v) => s + v, 0) / y.length;
-    let sse = 0, sst = 0; const ape = [];
-    zi.forEach((_, k) => {
-        const f = ols(X.filter((_, t) => t !== k), y.filter((_, t) => t !== k));
-        const p = f ? predictRow(f.b, X[k]) : ybar;
-        sse += (y[k] - p) ** 2; sst += (y[k] - ybar) ** 2; ape.push(Math.abs(p / y[k] - 1));
-    });
-    const zonesOut = zi.map(i => {
-        const base = predictRow(fit.b, row(i));
-        const rRef = predictRow(fit.b, usePop ? [1, empRef[i], pop[i]] : [1, empRef[i]]);
-        const rS1 = predictRow(fit.b, usePop ? [1, empS1[i], pop[i]] : [1, empS1[i]]);
-        return { i, name: D.zones[i].name, cod: D.zones[i].cod, obs: D.zones[i].atr, emp: emp[i], pop: pop[i], base, ref: rRef, s1: rS1 };
-    });
+    // Validación "dejando una fuera": cada zona se predice con un modelo que no la vio. Se compara con usar solo empleos.
+    const cv = looCV(X, y), cvEmp = useAct ? looCV(zi.map(i => [1, emp[i]]), y) : cv;
+    const zonesOut = zi.map(i => ({ i, name: D.zones[i].name, cod: D.zones[i].cod, obs: D.zones[i].atr, emp: emp[i],
+        base: predictRow(fit.b, row(i, emp[i])), ref: predictRow(fit.b, row(i, empRef[i])), s1: predictRow(fit.b, row(i, empS1[i])) }));
     const sum = k => zonesOut.reduce((s, z) => s + z[k], 0);
-    // Solo se usa para proyectar si tiene sentido (más empleo → más viajes) y predice zonas no vistas mejor que el promedio
-    const reliable = fit.b[1] > 0 && (1 - sse / sst) > 0;
-    return { fit, usePop, reliable, perJob: fit.b[1], perHab: usePop ? fit.b[2] : null, n: zi.length,
-        cv: { r2: 1 - sse / sst, mdape: median(ape) }, zones: zonesOut,
+    // Solo se proyecta si tiene sentido (más empleo → más viajes) y predice zonas no vistas razonablemente (R² ≥ 0.3)
+    const reliable = fit.b[1] > 0 && cv.r2 >= 0.3;
+    const actCoef = useAct ? Object.fromEntries(ACT_GROUPS.map((g, k) => [g, fit.b[2 + k]])) : null;
+    return { fit, useAct, reliable, perJob: fit.b[1], actCoef, n: zi.length, cv, cvEmp, zones: zonesOut,
         totBase: sum("base"), totRef: sum("ref"), totS1: sum("s1") };
 }
 
@@ -1676,7 +1703,8 @@ window.addEventListener("DOMContentLoaded", () => {
             if (R.hed) {
                 const h = R.hed, cv = h.cv;
                 $("k-hedcv").innerHTML = `
-                    <div>Estimado con ${fmt(h.n)} precios reales (avisos 2019–2020)${h.spec.useCensus ? " + censo por manzana (estrato y densidad)" : " (sin datos de censo)"} + distrito.</div>
+                    <div>Estimado con ${fmt(h.n)} precios reales (avisos 2019–2020)${h.spec.useCensus ? " + censo por manzana (estrato y densidad)" : " (sin datos de censo)"} + distrito${h.spec.listing && (h.spec.listing.useArea || h.spec.listing.tipoDummies.length) ? " + tipo de inmueble y área del terreno" : ""}.</div>
+                    ${h.spec.listing ? `<div class="text-slate-500">Los mapas estiman el precio de un <b>inmueble típico</b>: ${esc(String(h.spec.listing.refTipo).toLowerCase())}${h.spec.listing.useArea ? `, ${fmt(h.spec.listing.medArea)} m² de terreno` : ""}.</div>` : ""}
                     <div class="grid grid-cols-2 gap-1 mt-1">
                         <div><span class="text-slate-500 block">Error típico fuera de muestra</span><b class="text-sky-800 text-sm">±${fmt(cv.mdape * 100, 0)}%</b> <span class="text-slate-400">regla simple ±${fmt(cv.mdapeBase * 100, 0)}%</span></div>
                         <div><span class="text-slate-500 block">R² fuera de muestra</span><b class="text-sky-800 text-sm">${fmt(cv.r2, 2)}</b> <span class="text-slate-400">regla simple ${fmt(cv.r2Base, 2)}</span></div>
@@ -1687,15 +1715,16 @@ window.addEventListener("DOMContentLoaded", () => {
             if (R.trips) {
                 const T = R.trips;
                 $("k-trips").innerHTML = `
-                    <div>Calibrado con ${T.n} zonas de tránsito ATU en Lima Norte: cada empleo atrae ≈ <b>${fmt(T.perJob, 2)}</b> viajes${T.usePop ? ` y cada habitante ≈ <b>${fmt(T.perHab, 2)}</b>` : ""}.</div>
+                    <div>Calibrado con ${T.n} zonas de tránsito ATU en Lima Norte: cada empleo atrae ≈ <b>${fmt(T.perJob, 2)}</b> viajes${T.useAct ? "; además, por cada hectárea de actividad:" : "."}</div>
+                    ${T.useAct ? `<div class="grid grid-cols-2 gap-x-2">${ACT_GROUPS.map(g => `<div>· ${ACT_LABEL[g]}: <b>${T.actCoef[g] >= 0 ? "+" : ""}${fmt(T.actCoef[g])}</b> viajes</div>`).join("")}</div>` : ""}
                     <div class="grid grid-cols-2 gap-1 mt-1">
                         <div><span class="text-slate-500 block">Error típico (zona fuera)</span><b class="text-sky-800 text-sm">±${fmt(T.cv.mdape * 100, 0)}%</b></div>
-                        <div><span class="text-slate-500 block">R² dejando una zona fuera</span><b class="text-sky-800 text-sm">${fmt(T.cv.r2, 2)}</b></div>
+                        <div><span class="text-slate-500 block">R² dejando una zona fuera</span><b class="text-sky-800 text-sm">${fmt(T.cv.r2, 2)}</b>${T.useAct ? ` <span class="text-slate-400">solo empleos ${fmt(T.cvEmp.r2, 2)}</span>` : ""}</div>
                     </div>
-                    ${verdict(T.cv.r2 > 0.3 && T.perJob > 0, "La relación empleo–viajes es consistente entre zonas.", "La relación es débil o inconsistente: interprétese con cautela.")}
+                    ${verdict(T.reliable, "La relación es consistente entre zonas: se usa para proyectar.", "La relación es débil (R² &lt; 0.3) o inconsistente: no se usa para proyectar.")}
                     ${T.reliable
                         ? `<div class="mt-1">Al ${R.P.year}: <b>${fmt(T.totS1 - T.totBase)}</b> viajes atraídos adicionales en esas zonas (${pct(T.totS1 / T.totBase - 1)}); frente a la referencia: ${T.totS1 - T.totRef >= 0 ? "+" : ""}${fmt(T.totS1 - T.totRef)}.</div>`
-                        : `<div class="mt-1 text-red-700">No se proyectan viajes: con estos datos la relación no es confiable (${T.perJob <= 0 ? "más empleo no implica más viajes" : "no predice zonas no vistas mejor que el promedio"}).</div>`}
+                        : `<div class="mt-1 text-red-700">No se proyectan viajes: con estos datos la relación no es confiable (${T.perJob <= 0 ? "más empleo no implica más viajes" : "R² fuera de muestra menor a 0.3"}).</div>`}
                     <div class="text-slate-400">Los viajes de la ATU son salidas de otro modelo (no conteos). Unidades según ese modelo.</div>`;
             } else $("k-trips").textContent = D.zonesError ? `No disponible: ${D.zonesError}` : "No disponible (faltan zonas ATU con datos).";
 
@@ -1897,10 +1926,11 @@ window.addEventListener("DOMContentLoaded", () => {
 
                 loading("Descargando registros de valor de suelo...", 88);
                 try {
-                    const s = await fetchAll(URL_SUELO, { where: WHERE_LN + " AND SOLES_M2 > 0", outFields: "OBJECTID,SOLES_M2", returnGeometry: true, outSR: 102100 }, "OBJECTID");
+                    const s = await fetchAll(URL_SUELO, { where: WHERE_LN + " AND SOLES_M2 > 0", outFields: "OBJECTID,SOLES_M2,TIPO,AREA_TOT", returnGeometry: true, outSR: 102100 }, "OBJECTID");
                     const pts = s.features.filter(f => f.geometry && f.attributes.SOLES_M2 > 0).map(f => {
                         const x = f.geometry.x, y = f.geometry.y, cos = Math.cos(2 * Math.atan(Math.exp(y / 6378137)) - Math.PI / 2);
-                        return { x, y, cos, jcx: Math.floor(x / JCELL), jcy: Math.floor(y / JCELL), price: f.attributes.SOLES_M2 };
+                        return { x, y, cos, jcx: Math.floor(x / JCELL), jcy: Math.floor(y / JCELL), price: f.attributes.SOLES_M2,
+                            tipo: String(f.attributes.TIPO ?? "").trim().toUpperCase() || "SIN DATO", area: Number(f.attributes.AREA_TOT) || 0 };
                     });
                     const dd = distancesTo(D.roads, pts.map(p => p.x), pts.map(p => p.y), pts.map(p => p.cos), null).dist;
                     pts.forEach((p, i) => p.dAll = dd[i]);
@@ -1979,6 +2009,31 @@ window.addEventListener("DOMContentLoaded", () => {
                     }
                     if (!D.zones.length) D.zonesError = "no hay zonas ATU en estos distritos";
                 } catch (e) { console.warn("Zonas ATU no disponibles", e); D.zones = null; D.zonesError = e.message; }
+
+                // ---- Actividades económicas: hectáreas por tipo dentro de cada zona ATU ----
+                if (D.zones && D.zones.length) {
+                    loading("Descargando actividades económicas...", 93);
+                    try {
+                        const a = await fetchAll(URL_ACT, { where: "1=1", outFields: "objectid,tipo_ae,area_has", returnGeometry: true, outSR: 102100, maxAllowableOffset: 10 }, "objectid");
+                        D.zoneAct = D.zones.map(() => ({ com: 0, edu: 0, serv: 0, ind: 0 }));
+                        let assigned = 0;
+                        a.features.forEach(f => {
+                            if (!f.geometry || !f.geometry.rings || !f.geometry.rings.length) return;
+                            const ring = f.geometry.rings[0];
+                            let x = 0, y = 0;
+                            ring.forEach(p => { x += p[0]; y += p[1]; });
+                            x /= ring.length; y /= ring.length;                       // punto representativo del polígono
+                            const ha = Number(f.attributes.area_has) || 0;
+                            for (let k = 0; k < D.zones.length; k++) {
+                                const b = D.zones[k].bbox;
+                                if (x < b.xmin || x > b.xmax || y < b.ymin || y > b.ymax) continue;
+                                if (pointInRings(x, y, D.zones[k].rings)) { D.zoneAct[k][actGroup(f.attributes.tipo_ae)] += ha; assigned++; break; }
+                            }
+                        });
+                        console.info(`Actividades económicas: ${a.features.length} polígonos, ${assigned} dentro de zonas ATU`);
+                        if (!assigned) D.zoneAct = null;
+                    } catch (e) { console.warn("Actividades económicas no disponibles", e); D.zoneAct = null; }
+                }
 
                 // ---- Expansión urbana: mancha 1985 / 2003 / 2013 ----
                 loading("Descargando la mancha urbana histórica...", 94);
