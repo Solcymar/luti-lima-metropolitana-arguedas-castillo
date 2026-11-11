@@ -128,13 +128,25 @@
                             </ul>
                         </div>
                         <div>
+                            <h4 class="font-bold text-slate-900 mb-1">D. Expansión urbana (regresión logística, validada en el tiempo)</h4>
+                            <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 font-mono text-[11px] text-slate-800">P(urbanizarse) = 1 / (1 + e<sup>−(c<sub>0</sub> + c<sub>1</sub>·dist. a lo urbano + c<sub>2</sub>·dist. a vía + c<sub>3</sub>·% urbano cercano + c<sub>4</sub>·dist. al centro)</sup>)</div>
+                            <p class="mt-1">Celdas de 1 ha en Lima Norte. Se <b>entrena</b> con la mancha urbana 1985→2003 (capas Huella del Plan Met 2040), se <b>valida</b> prediciendo 2003→2013 sin ver ese periodo y se compara contra una regla simple (urbanizar lo más cercano a la ciudad). Para proyectar, se re-estima con 2003→2013 y se urbaniza al ritmo observado (ha/año) en las celdas más probables.</p>
+                        </div>
+                        <div>
+                            <h4 class="font-bold text-slate-900 mb-1">E. Viajes atraídos (regresión, validación "dejando una fuera")</h4>
+                            <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 font-mono text-[11px] text-slate-800">Viajes atraídos<sub>z</sub> = a + b·Empleos<sub>z</sub> + c·Población<sub>z</sub></div>
+                            <p class="mt-1">Se calibra con las zonas de tránsito de la capa 3_Movilidad (fuente: modelo ATU) que caen en Lima Norte. Cada zona se predice con un modelo que no la vio. Ojo: los viajes de la ATU son resultados de otro modelo, no conteos directos.</p>
+                        </div>
+                        <div>
                             <h4 class="font-bold text-slate-900 mb-1">Supuestos y limitaciones</h4>
                             <ul class="list-disc pl-4 space-y-0.5">
                                 <li>g, α, β y γ son <b>ilustrativos</b>: no están calibrados con datos históricos de Lima.</li>
                                 <li>Distancias en línea recta desde el centroide de la manzana. J se calcula en una grilla de 250 m.</li>
                                 <li>La capa vial es el sistema <b>propuesto</b> y probablemente incluye vías existentes.</li>
                                 <li>El modelo hedónico usa pocos registros y dos variables: es una aproximación. Ver su R² en Indicadores.</li>
-                                <li>No modela hogares, oferta inmobiliaria ni congestión (UrbanSim completo sí). Los resultados son escenarios, no predicciones.</li>
+                                <li>Expansión urbana: la red vial usada es la <b>propuesta actual</b>, aplicada también a 1985 y 2003 (anacronismo); la capa "1981" dice internamente 1985; no se usa la pendiente del terreno.</li>
+                                <li>Las predicciones validadas (expansión, valor de suelo, viajes) informan su error. Los escenarios de empleo siguen siendo "qué pasaría si".</li>
+                                <li>No modela oferta inmobiliaria ni congestión (UrbanSim completo sí).</li>
                             </ul>
                             <p class="mt-1 text-slate-500">Referencias: McFadden; Ben-Akiva &amp; Lerman (1985); Lowry (1964); Hansen (1959); Rosen (1974); Waddell (2002, UrbanSim).</p>
                         </div>
@@ -203,6 +215,13 @@
                         <optgroup label="Valor de suelo (modelo hedónico)">
                             <option value="VALOR">Valor de suelo estimado al horizonte</option>
                             <option value="DVALOR">Cambio % del valor de suelo vs referencia</option>
+                        </optgroup>
+                        <optgroup label="Expansión urbana (predicción validada)">
+                            <option value="EXP_VAL">Validación: predicción 2003→2013 vs realidad</option>
+                            <option value="EXP_PROY">Proyección de expansión al horizonte</option>
+                        </optgroup>
+                        <optgroup label="Transporte">
+                            <option value="VIAJES">Viajes atraídos por zona ATU (horizonte)</option>
                         </optgroup>
                     </select>
                     <label class="text-[11px] text-slate-600 block pt-1">Comparar contra (referencia)</label>
@@ -296,6 +315,23 @@
                 </div>
             </div>
             <div id="dashboard-body" class="p-4 space-y-3 overflow-y-auto custom-scrollbar flex-1 text-xs text-slate-600">
+                <!-- Predicciones validadas -->
+                <div class="bg-sky-50/70 p-3 rounded-xl border border-sky-200 space-y-2">
+                    <span class="text-[10px] text-sky-800 block uppercase font-bold"><i class="fa-solid fa-circle-check"></i> Predicciones validadas con datos reales</span>
+                    <div class="bg-white/80 border border-sky-100 rounded-lg p-2 space-y-0.5">
+                        <div class="font-semibold text-slate-800"><i class="fa-solid fa-city text-sky-700"></i> 1. ¿Dónde crecerá la ciudad?</div>
+                        <div id="k-exp" class="text-[10px] text-slate-600">Cargando mancha urbana histórica...</div>
+                    </div>
+                    <div class="bg-white/80 border border-sky-100 rounded-lg p-2 space-y-0.5">
+                        <div class="font-semibold text-slate-800"><i class="fa-solid fa-sack-dollar text-amber-600"></i> 2. ¿Cuánto vale el suelo?</div>
+                        <div id="k-hedcv" class="text-[10px] text-slate-600">—</div>
+                    </div>
+                    <div class="bg-white/80 border border-sky-100 rounded-lg p-2 space-y-0.5">
+                        <div class="font-semibold text-slate-800"><i class="fa-solid fa-bus text-emerald-700"></i> 3. ¿Cuántos viajes atrae cada zona?</div>
+                        <div id="k-trips" class="text-[10px] text-slate-600">—</div>
+                    </div>
+                </div>
+
                 <div class="grid grid-cols-2 gap-2">
                     <div class="bg-slate-50 p-3 rounded-xl border border-slate-200">
                         <span class="text-[10px] text-slate-400 block uppercase font-medium">Empleos base</span>
@@ -365,6 +401,16 @@ const URL_MANZANAS = `${REST}/MANZANAS_CENEC/FeatureServer/7`;
 const URL_VIAS     = `${REST}/p_1501_1_sistema_vial_metropolitano_propuesto/FeatureServer/206`;
 const URL_LIMITES  = `${REST}/LIMITES_INEI/FeatureServer/0`;
 const URL_SUELO    = `${REST}/VALOR_DE_SUELO/FeatureServer/0`;
+const URL_CENSO    = `${REST}/estadisticas_manzanas/FeatureServer/0`;          // tabla: población, hogares, estrato por manzana
+const URL_ZONAS    = `${REST}/3_Movilidad/FeatureServer/15`;                   // viajes generados/atraídos por zona (modelo ATU)
+const HUELLAS = [                                                               // mancha urbana histórica (Plan Met 2040)
+    { key: "h1985", year: 1985, url: `${REST}/Huella_AM_LimaCallao_1981/FeatureServer/8`, note: "capa 'Huella 1981', atributo ANO_EU = 1985" },
+    { key: "h2003", year: 2003, url: `${REST}/Huella_AM_LimaCallao_2003/FeatureServer/9` },
+    { key: "h2013", year: 2013, url: `${REST}/Huella_AM_LimaCallao_2013/FeatureServer/10` }
+];
+const ZONAS_LN = ["ANCON", "CARABAYLLO", "COMAS", "INDEPENDENCIA", "LOS OLIVOS", "PUENTE PIEDRA", "SAN MARTIN DE PORRES", "SANTA ROSA"];
+const EXP_CELL_M = 100;                                                         // tamaño de celda del modelo de expansión urbana
+const LIMA_CENTER = { lon: -77.0300, lat: -12.0458 };                          // Plaza Mayor de Lima
 
 const LIMA_NORTE = {
     "150102": "Ancón", "150106": "Carabayllo", "150110": "Comas", "150112": "Independencia",
@@ -450,8 +496,13 @@ const D = {
     n: 0, ids: [], ubigeo: [], X: null, Y: null, cosLat: null, raw: null, jcx: null, jcy: null,
     roads: [], districtNames: { ...LIMA_NORTE },
     dAll: null,              // distancia (m) de cada manzana a cualquier vía del sistema propuesto
-    soil: null,              // registros de valor de suelo: {x, y, cos, jcx, jcy, price, dAll}
-    soilMedian: null
+    soil: null,              // registros de valor de suelo: {x, y, cos, jcx, jcy, price, dAll, jb}
+    soilMedian: null,
+    census: null,            // por manzana: {pop, dens, est, matched} (unión por IDMANZANA)
+    censusMatch: 0,
+    zones: null,             // zonas ATU: {name, cod, atr, gen, rings, bbox}
+    blockZone: null,         // índice de zona ATU de cada manzana (-1 si ninguna)
+    exp: null                // modelo de expansión urbana (raster, entrenamiento, validación)
 };
 let R = null;
 
@@ -571,10 +622,11 @@ function invertMatrix(M) {
     return A.map(row => row.slice(n));
 }
 
-function ols(X, y) {
+function ols(X, y, ridge = 0) {
     const n = X.length, k = X[0].length;
     const XtX = Array.from({ length: k }, () => new Array(k).fill(0)), Xty = new Array(k).fill(0);
     for (let i = 0; i < n; i++) for (let a = 0; a < k; a++) { Xty[a] += X[i][a] * y[i]; for (let b = 0; b < k; b++) XtX[a][b] += X[i][a] * X[i][b]; }
+    for (let a = 1; a < k; a++) XtX[a][a] += ridge;            // regularización leve (no al intercepto) para evitar matrices singulares
     const inv = invertMatrix(XtX);
     if (!inv) return null;
     const b = inv.map(row => row.reduce((s, v, j) => s + v * Xty[j], 0));
@@ -586,20 +638,257 @@ function ols(X, y) {
     return { b, se, t: b.map((v, i) => v / se[i]), R2: sst > 0 ? 1 - sse / sst : 0, n };
 }
 
-// Modelo hedónico: ln(S/m2) = b0 + b1·d_km + b2·ln(1+J)
+const predictRow = (b, x) => x.reduce((s, v, i) => s + v * b[i], 0);
+const median = arr => { const a = [...arr].sort((x, y) => x - y), m = a.length >> 1; return a.length ? (a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2) : NaN; };
+
+// ---- Variables fijas de cada manzana para el modelo hedónico (censo + distrito) ----
+function blockStaticFeatures(j, spec) {
+    const f = [];
+    if (spec.useCensus) {
+        const c = D.census;
+        f.push(Math.log1p(c.dens[j]));
+        const e = c.matched[j] ? c.est[j] : 0;
+        f.push(e === 2 ? 1 : 0, e === 3 ? 1 : 0, e >= 4 ? 1 : 0, e === 0 ? 1 : 0);   // referencia: estrato Bajo (1)
+    }
+    for (const u of spec.distDummies) f.push(D.ubigeo[j] === u ? 1 : 0);
+    return f;
+}
+
+// Modelo hedónico: ln(S/m2) = b0 + b1·d_km + b2·ln(1+J) + [censo: densidad, estrato] + [efectos de distrito]
+// Se valida con validación cruzada de 5 grupos (deterministas) contra una regla simple: la mediana del distrito.
 function estimateHedonic(sumsBase) {
-    if (!D.soil || D.soil.length < 20) return null;
-    const rows = D.soil.filter(s => Number.isFinite(s.dAll)).map(s => ({ y: Math.log(s.price), d: s.dAll / 1000, J: jobsNear(sumsBase, s.jcx, s.jcy) }));
+    if (!D.soil || D.soil.length < 30) return null;
+    const rows = D.soil.filter(s => Number.isFinite(s.dAll) && s.jb >= 0)
+        .map(s => ({ y: Math.log(s.price), d: s.dAll / 1000, J: jobsNear(sumsBase, s.jcx, s.jcy), jb: s.jb, ub: D.ubigeo[s.jb] }));
     const ys = rows.map(r => r.y).sort((a, b) => a - b);
     const lo = ys[Math.floor(0.01 * ys.length)], hi = ys[Math.ceil(0.99 * ys.length) - 1];
     const use = rows.filter(r => r.y >= lo && r.y <= hi);
-    if (use.length < 20) return null;
-    const fit = ols(use.map(r => [1, r.d, Math.log1p(r.J)]), use.map(r => r.y));
+    if (use.length < 30) return null;
+
+    const counts = {};
+    use.forEach(r => counts[r.ub] = (counts[r.ub] || 0) + 1);
+    const ordered = Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
+    const spec = { useCensus: !!D.census && D.censusMatch >= 0.3, distDummies: ordered.slice(1).filter(u => counts[u] >= 5) };
+    const names = ["Intercepto", "Distancia a vía (km)", "ln(1 + empleos ≤ 1 km)"];
+    if (spec.useCensus) names.push("ln(1 + densidad pob.)", "Estrato medio bajo", "Estrato medio", "Estrato medio alto/alto", "Estrato sin dato");
+    spec.distDummies.forEach(u => names.push(`Distrito: ${D.districtNames[u] || u}`));
+    const X = use.map(r => [1, r.d, Math.log1p(r.J), ...blockStaticFeatures(r.jb, spec)]);
+    const y = use.map(r => r.y);
+    const fit = ols(X, y, 1e-4);
     if (!fit) return null;
-    fit.nTotal = D.soil.length;
+
+    // Validación cruzada (5 grupos: el registro i va al grupo i mod 5)
+    const K = 5, pred = new Array(use.length), base = new Array(use.length);
+    for (let k = 0; k < K; k++) {
+        const tr = [], te = [];
+        use.forEach((r, i) => (i % K === k ? te : tr).push(i));
+        const f = ols(tr.map(i => X[i]), tr.map(i => y[i]), 1e-4);
+        const medBy = {}, all = tr.map(i => use[i].y);
+        tr.forEach(i => (medBy[use[i].ub] = medBy[use[i].ub] || []).push(use[i].y));
+        te.forEach(i => {
+            pred[i] = f ? predictRow(f.b, X[i]) : median(all);
+            base[i] = medBy[use[i].ub] ? median(medBy[use[i].ub]) : median(all);
+        });
+    }
+    const ybar = y.reduce((s, v) => s + v, 0) / y.length;
+    let sse = 0, sst = 0, sseB = 0;
+    const ape = [], apeB = [];
+    y.forEach((v, i) => {
+        sse += (v - pred[i]) ** 2; sseB += (v - base[i]) ** 2; sst += (v - ybar) ** 2;
+        ape.push(Math.abs(Math.exp(pred[i]) / Math.exp(v) - 1)); apeB.push(Math.abs(Math.exp(base[i]) / Math.exp(v) - 1));
+    });
+    fit.cv = { r2: 1 - sse / sst, r2Base: 1 - sseB / sst, mdape: median(ape), mdapeBase: median(apeB), k: K };
+    Object.assign(fit, { names, spec, nTotal: D.soil.length });
     return fit;
 }
-const hedPredict = (h, dMeters, J) => Math.exp(h.b[0] + h.b[1] * (dMeters / 1000) + h.b[2] * Math.log1p(J));
+// Término fijo de cada manzana (censo + distrito) ya multiplicado por sus coeficientes
+function hedStatic(h) {
+    const s = new Float64Array(D.n);
+    for (let j = 0; j < D.n; j++) { const f = blockStaticFeatures(j, h.spec); let v = h.b[0]; f.forEach((x, i) => v += x * h.b[3 + i]); s[j] = v; }
+    return s;
+}
+const hedPredict = (h, staticTerm, dMeters, J) => Math.exp(staticTerm + h.b[1] * (dMeters / 1000) + h.b[2] * Math.log1p(J));
+
+// =====================================================================
+//  REGRESIÓN LOGÍSTICA, AUC Y RASTER (modelo de expansión urbana)
+// =====================================================================
+function logisticFit(X, y, iters = 40) {
+    const k = X[0].length;
+    let b = new Array(k).fill(0);
+    for (let it = 0; it < iters; it++) {
+        const H = Array.from({ length: k }, () => new Array(k).fill(0)), g = new Array(k).fill(0);
+        for (let i = 0; i < X.length; i++) {
+            const xi = X[i], p = 1 / (1 + Math.exp(-predictRow(b, xi))), w = p * (1 - p);
+            for (let a = 0; a < k; a++) { g[a] += (y[i] - p) * xi[a]; for (let c = 0; c <= a; c++) H[a][c] += w * xi[a] * xi[c]; }
+        }
+        for (let a = 0; a < k; a++) { for (let c = 0; c < a; c++) H[c][a] = H[a][c]; H[a][a] += 1e-6; }
+        const inv = invertMatrix(H);
+        if (!inv) break;
+        const step = inv.map(row => row.reduce((s, v, j) => s + v * g[j], 0));
+        b = b.map((v, i) => v + step[i]);
+        if (Math.max(...step.map(Math.abs)) < 1e-8) break;
+    }
+    return b;
+}
+
+// Área bajo la curva ROC: probabilidad de que una celda que sí se urbanizó tenga mayor puntaje que una que no.
+function auc(scores, labels) {
+    const idx = scores.map((s, i) => i).sort((a, b) => scores[a] - scores[b]);
+    let rankSum = 0, nPos = 0, i = 0;
+    while (i < idx.length) {
+        let j = i;
+        while (j + 1 < idx.length && scores[idx[j + 1]] === scores[idx[i]]) j++;
+        const avgRank = (i + j) / 2 + 1;
+        for (let t = i; t <= j; t++) if (labels[idx[t]]) { rankSum += avgRank; nPos++; }
+        i = j + 1;
+    }
+    const nNeg = idx.length - nPos;
+    return nPos && nNeg ? (rankSum - nPos * (nPos + 1) / 2) / (nPos * nNeg) : NaN;
+}
+function topN(scores, n) { return scores.map((s, i) => i).sort((a, b) => scores[b] - scores[a] || a - b).slice(0, n); }
+
+function makeRaster(bbox, cellM) {
+    const cs = cellM / COS0;
+    const nx = Math.ceil((bbox.xmax - bbox.xmin) / cs), ny = Math.ceil((bbox.ymax - bbox.ymin) / cs);
+    return { x0: bbox.xmin, y0: bbox.ymin, cs, cellM, nx, ny, n: nx * ny };
+}
+const cellX = (Rr, i) => Rr.x0 + ((i % Rr.nx) + 0.5) * Rr.cs;
+const cellY = (Rr, i) => Rr.y0 + (Math.floor(i / Rr.nx) + 0.5) * Rr.cs;
+
+// Rasteriza anillos de polígono (regla par-impar) evaluando el centro de cada celda.
+function rasterize(rings, Rr, out) {
+    out = out || new Uint8Array(Rr.n);
+    const rowX = Array.from({ length: Rr.ny }, () => []);
+    for (const ring of rings) for (let i = 0; i < ring.length - 1; i++) {
+        const [x1, y1] = ring[i], [x2, y2] = ring[i + 1];
+        if (y1 === y2) continue;
+        const rA = Math.max(0, Math.ceil((Math.min(y1, y2) - Rr.y0) / Rr.cs - 0.5));
+        const rB = Math.min(Rr.ny - 1, Math.floor((Math.max(y1, y2) - Rr.y0) / Rr.cs - 0.5));
+        for (let r = rA; r <= rB; r++) {
+            const yc = Rr.y0 + (r + 0.5) * Rr.cs;
+            if ((y1 <= yc) !== (y2 <= yc)) rowX[r].push(x1 + (yc - y1) * (x2 - x1) / (y2 - y1));
+        }
+    }
+    for (let r = 0; r < Rr.ny; r++) {
+        const xs = rowX[r].sort((a, b) => a - b);
+        for (let k = 0; k + 1 < xs.length; k += 2) {
+            const cA = Math.max(0, Math.ceil((xs[k] - Rr.x0) / Rr.cs - 0.5)), cB = Math.min(Rr.nx - 1, Math.floor((xs[k + 1] - Rr.x0) / Rr.cs - 0.5));
+            for (let c = cA; c <= cB; c++) out[r * Rr.nx + c] ^= 1;
+        }
+    }
+    return out;
+}
+
+// Transformada de distancia euclidiana exacta (Felzenszwalb & Huttenlocher): distancia (en celdas) a la celda "1" más cercana.
+function edt(bin, nx, ny) {
+    const INF = 1e20, f = new Float64Array(Math.max(nx, ny)), d = new Float64Array(Math.max(nx, ny));
+    const v = new Int32Array(Math.max(nx, ny)), z = new Float64Array(Math.max(nx, ny) + 1), g = new Float64Array(nx * ny);
+    const pass = (n) => {
+        let k = 0; v[0] = 0; z[0] = -INF; z[1] = INF;
+        for (let q = 1; q < n; q++) {
+            let s = ((f[q] + q * q) - (f[v[k]] + v[k] * v[k])) / (2 * q - 2 * v[k]);
+            while (s <= z[k]) { k--; s = ((f[q] + q * q) - (f[v[k]] + v[k] * v[k])) / (2 * q - 2 * v[k]); }
+            k++; v[k] = q; z[k] = s; z[k + 1] = INF;
+        }
+        k = 0;
+        for (let q = 0; q < n; q++) { while (z[k + 1] < q) k++; d[q] = (q - v[k]) ** 2 + f[v[k]]; }
+    };
+    for (let c = 0; c < nx; c++) { for (let r = 0; r < ny; r++) f[r] = bin[r * nx + c] ? 0 : INF; pass(ny); for (let r = 0; r < ny; r++) g[r * nx + c] = d[r]; }
+    for (let r = 0; r < ny; r++) { for (let c = 0; c < nx; c++) f[c] = g[r * nx + c]; pass(nx); for (let c = 0; c < nx; c++) g[r * nx + c] = Math.sqrt(d[c]); }
+    return g;
+}
+// Proporción de celdas "1" en una ventana cuadrada de (2w+1)×(2w+1)
+function windowShare(bin, nx, ny, w) {
+    const S = new Float64Array((nx + 1) * (ny + 1)), out = new Float64Array(nx * ny);
+    for (let r = 0; r < ny; r++) for (let c = 0; c < nx; c++) S[(r + 1) * (nx + 1) + c + 1] = bin[r * nx + c] + S[r * (nx + 1) + c + 1] + S[(r + 1) * (nx + 1) + c] - S[r * (nx + 1) + c];
+    for (let r = 0; r < ny; r++) for (let c = 0; c < nx; c++) {
+        const r0 = Math.max(0, r - w), r1 = Math.min(ny - 1, r + w), c0 = Math.max(0, c - w), c1 = Math.min(nx - 1, c + w);
+        const sum = S[(r1 + 1) * (nx + 1) + c1 + 1] - S[r0 * (nx + 1) + c1 + 1] - S[(r1 + 1) * (nx + 1) + c0] + S[r0 * (nx + 1) + c0];
+        out[r * nx + c] = sum / ((r1 - r0 + 1) * (c1 - c0 + 1));
+    }
+    return out;
+}
+function pointInRings(x, y, rings) {
+    let inside = false;
+    for (const ring of rings) for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+        const [xi, yi] = ring[i], [xj, yj] = ring[j];
+        if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside;
+    }
+    return inside;
+}
+function ringsBBox(rings) {
+    let xmin = Infinity, ymin = Infinity, xmax = -Infinity, ymax = -Infinity;
+    for (const ring of rings) for (const [x, y] of ring) { xmin = Math.min(xmin, x); xmax = Math.max(xmax, x); ymin = Math.min(ymin, y); ymax = Math.max(ymax, y); }
+    return { xmin, ymin, xmax, ymax };
+}
+const lonLatToMerc = (lon, lat) => [lon * Math.PI / 180 * 6378137, 6378137 * Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360))];
+
+// =====================================================================
+//  MODELO DE EXPANSIÓN URBANA (regresión logística validada en el tiempo)
+//  Entrena con 1985→2003, valida prediciendo 2003→2013 y proyecta desde 2013.
+// =====================================================================
+function buildExpansion(mask, U, Rr, dRoadCells) {
+    const [cxm, cym] = lonLatToMerc(LIMA_CENTER.lon, LIMA_CENTER.lat);
+    const dCenter = new Float64Array(Rr.n);
+    for (let i = 0; i < Rr.n; i++) if (mask[i]) dCenter[i] = Math.hypot(cellX(Rr, i) - cxm, cellY(Rr, i) - cym) * COS0 / 1000;
+    const stateFeatures = (Uprev) => {
+        const dU = edt(Uprev, Rr.nx, Rr.ny), share = windowShare(Uprev, Rr.nx, Rr.ny, 5);
+        return { dU, share };
+    };
+    const FEAT_NAMES = ["ln(1 + distancia a lo urbano /100 m)", "Distancia a vía (km)", "Proporción urbana en ~1 km", "Distancia al centro de Lima (km)"];
+    const featOf = (st, dRoad, i) => [Math.log1p(st.dU[i] * Rr.cellM / 100), dRoad[i] / 1000, st.share[i], dCenter[i]];
+    const candidates = Uprev => { const c = []; for (let i = 0; i < Rr.n; i++) if (mask[i] && !Uprev[i]) c.push(i); return c; };
+
+    const fitPeriod = (Uprev, Unext) => {
+        const st = stateFeatures(Uprev), cand = candidates(Uprev);
+        const raw = cand.map(i => featOf(st, dRoadCells, i)), y = cand.map(i => Unext[i] ? 1 : 0);
+        const k = raw[0].length, mean = new Array(k).fill(0), sd = new Array(k).fill(0);
+        raw.forEach(r => r.forEach((v, a) => mean[a] += v / raw.length));
+        raw.forEach(r => r.forEach((v, a) => sd[a] += (v - mean[a]) ** 2 / raw.length));
+        for (let a = 0; a < k; a++) sd[a] = Math.sqrt(sd[a]) || 1;
+        const X = raw.map(r => [1, ...r.map((v, a) => (v - mean[a]) / sd[a])]);
+        const b = logisticFit(X, y);
+        return { b, mean, sd, nCand: cand.length, nPos: y.reduce((s, v) => s + v, 0) };
+    };
+    const scoreWith = (model, st, dRoad, cand) => cand.map(i => predictRow(model.b, [1, ...featOf(st, dRoad, i).map((v, a) => (v - model.mean[a]) / model.sd[a])]));
+
+    // 1) Entrenamiento 1985→2003
+    const train = fitPeriod(U[0], U[1]);
+    // 2) Validación: con los coeficientes de 1985→2003, predecir 2003→2013
+    const st03 = stateFeatures(U[1]), cand03 = candidates(U[1]);
+    const yVal = cand03.map(i => U[2][i] ? 1 : 0), nNew = yVal.reduce((s, v) => s + v, 0);
+    const sModel = scoreWith(train, st03, dRoadCells, cand03), sNull = cand03.map(i => -st03.dU[i]);
+    const hitsOf = scores => topN(scores, nNew).reduce((s, i) => s + yVal[i], 0);
+    const hitM = hitsOf(sModel), hitN = hitsOf(sNull);
+    const predSet = new Set(topN(sModel, nNew).map(t => cand03[t]));
+    const val = { nNew, aucModel: auc(sModel, yVal), aucNull: auc(sNull, yVal), hitModel: hitM / nNew, hitNull: hitN / nNew, predSet,
+        actual: cand03.filter((i, t) => yVal[t]), base: 1 - nNew / cand03.length };
+    // 3) Modelo final: re-estimado con el periodo más reciente (2003→2013)
+    const final = fitPeriod(U[1], U[2]);
+    const st13 = stateFeatures(U[2]), cand13 = candidates(U[2]);
+    const ratePerYear = nNew / 10;
+    let urbanHa = [0, 0, 0];
+    for (let i = 0; i < Rr.n; i++) if (mask[i]) for (let t = 0; t < 3; t++) urbanHa[t] += U[t][i] * (Rr.cellM * Rr.cellM / 10000);
+    return { Rr, mask, U, dRoadCells, train, val, final, st13, cand13, ratePerYear, urbanHa, FEAT_NAMES, scoreWith,
+        nMask: mask.reduce((s, v) => s + v, 0) };
+}
+
+// Proyección desde 2013 al año T (las vías nuevas dibujadas cambian la distancia a vía)
+function projectExpansion(X, year, newRoads) {
+    const Rr = X.Rr;
+    let dRoad = X.dRoadCells;
+    if (newRoads.length) {
+        const xs = [], ys = [], cs = [], idx = X.cand13;
+        idx.forEach(i => { xs.push(cellX(Rr, i)); ys.push(cellY(Rr, i)); cs.push(COS0); });
+        const dn = distancesTo(newRoads, xs, ys, cs, null).dist;
+        dRoad = Float64Array.from(X.dRoadCells);
+        idx.forEach((i, t) => { if (dn[t] < dRoad[i]) dRoad[i] = dn[t]; });
+    }
+    const n = Math.max(0, Math.round(X.ratePerYear * (year - 2013)));
+    const scores = X.scoreWith(X.final, X.st13, dRoad, X.cand13);
+    const chosen = topN(scores, Math.min(n, X.cand13.length)).map(t => X.cand13[t]);
+    return { n, chosen, dRoad };
+}
 
 // =====================================================================
 //  MODELO
@@ -711,12 +1000,13 @@ function runModel(P, projects) {
         for (let j = 0; j < n; j++) { Eref[j] = E[j] + ref[j]; ES1[j] = E[j] + newS1[j]; }
         const JpRef = jobsNearAll(cellSums(Eref, used)), JpS1 = jobsNearAll(cellSums(ES1, used));
         priceBase = new Float64Array(n); priceRef = new Float64Array(n); priceS1 = new Float64Array(n); dval = new Float64Array(n);
+        const st = hedStatic(hed);
         let sb = 0, sr = 0, ss = 0, cnt = 0;
         for (let j = 0; j < n; j++) {
             if (!used[j] || !Number.isFinite(D.dAll[j])) continue;
-            priceBase[j] = hedPredict(hed, D.dAll[j], Jb[j]);
-            priceRef[j] = hedPredict(hed, D.dAll[j], JpRef[j]);
-            priceS1[j] = hedPredict(hed, dAllS1[j], JpS1[j]);
+            priceBase[j] = hedPredict(hed, st[j], D.dAll[j], Jb[j]);
+            priceRef[j] = hedPredict(hed, st[j], D.dAll[j], JpRef[j]);
+            priceS1[j] = hedPredict(hed, st[j], dAllS1[j], JpS1[j]);
             dval[j] = priceS1[j] / priceRef[j] - 1;
             sb += priceBase[j]; sr += priceRef[j]; ss += priceS1[j]; cnt++;
         }
@@ -763,7 +1053,12 @@ function runModel(P, projects) {
         if (b) { b.base += E[j]; b.ref += ref[j]; b.s1 += newS1[j]; }
     }
 
+    // 9) Viajes atraídos por zona (calibrado con el modelo ATU, validación "dejando una zona fuera")
+    const trips = tripsModel(E, used, ref, newS1);
+    if (trips) for (const s of projStats) s.trips = trips.perJob * s.direct;
+
     return {
+        trips,
         P, E, used, excluded, Dd, dist: dS1, nearKind, nearA: A.ref, nearN: N.ref, activeRoads, newRoads,
         Jb, newT, newS0, newS1, ref, refLabel, dif,
         Etot, dE, Dtot, growthFactor, years, nUsed, nExcl, nNull, hasDist,
@@ -775,6 +1070,45 @@ function runModel(P, projects) {
         meanDistProj: totProj > 0 && hasDist ? wDistProj / totProj : NaN,
         hed, priceBase, priceRef, priceS1, dval, priceStats, projStats, byDist
     };
+}
+
+// Viajes atraídos = b0 + b1·empleos + b2·población (por zona de tránsito ATU)
+function tripsModel(E, used, ref, newS1) {
+    if (!D.zones || !D.blockZone) return null;
+    const Z = D.zones.length, emp = new Float64Array(Z), pop = new Float64Array(Z), empRef = new Float64Array(Z), empS1 = new Float64Array(Z), nb = new Int32Array(Z);
+    const usePop = !!D.census && D.censusMatch >= 0.3;
+    for (let j = 0; j < D.n; j++) {
+        const z = D.blockZone[j];
+        if (z < 0) continue;
+        nb[z]++;
+        if (usePop) pop[z] += D.census.pop[j];
+        if (!used[j]) continue;
+        emp[z] += E[j]; empRef[z] += E[j] + ref[j]; empS1[z] += E[j] + newS1[j];
+    }
+    const zi = D.zones.map((z, i) => i).filter(i => nb[i] >= 3 && D.zones[i].atr > 0);
+    if (zi.length < 8) return null;
+    const row = i => usePop ? [1, emp[i], pop[i]] : [1, emp[i]];
+    const X = zi.map(row), y = zi.map(i => D.zones[i].atr);
+    const fit = ols(X, y);
+    if (!fit) return null;
+    // Validación "dejando una fuera" (leave-one-out): cada zona se predice con un modelo que no la vio
+    const ybar = y.reduce((s, v) => s + v, 0) / y.length;
+    let sse = 0, sst = 0; const ape = [];
+    zi.forEach((_, k) => {
+        const f = ols(X.filter((_, t) => t !== k), y.filter((_, t) => t !== k));
+        const p = f ? predictRow(f.b, X[k]) : ybar;
+        sse += (y[k] - p) ** 2; sst += (y[k] - ybar) ** 2; ape.push(Math.abs(p / y[k] - 1));
+    });
+    const zonesOut = zi.map(i => {
+        const base = predictRow(fit.b, row(i));
+        const rRef = predictRow(fit.b, usePop ? [1, empRef[i], pop[i]] : [1, empRef[i]]);
+        const rS1 = predictRow(fit.b, usePop ? [1, empS1[i], pop[i]] : [1, empS1[i]]);
+        return { i, name: D.zones[i].name, cod: D.zones[i].cod, obs: D.zones[i].atr, emp: emp[i], pop: pop[i], base, ref: rRef, s1: rS1 };
+    });
+    const sum = k => zonesOut.reduce((s, z) => s + z[k], 0);
+    return { fit, usePop, perJob: fit.b[1], perHab: usePop ? fit.b[2] : null, n: zi.length,
+        cv: { r2: 1 - sse / sst, mdape: median(ape) }, zones: zonesOut,
+        totBase: sum("base"), totRef: sum("ref"), totS1: sum("s1") };
 }
 
 // =====================================================================
@@ -921,8 +1255,10 @@ window.addEventListener("DOMContentLoaded", () => {
         });
         const projLayer = new GraphicsLayer({ title: "Proyectos" });
         const sketchLayer = new GraphicsLayer({ title: "Dibujo" });
-        let resultLayer = null;
-        map.addMany([manzanasLayer, sueloLayer, viasLayer, limitesLayer, projLayer, sketchLayer]);
+        const huellaLayer = new GraphicsLayer({ title: "Mancha urbana histórica", visible: false });
+        let resultLayer = null, expLayer = null, zonesLayer = null;
+        map.addMany([huellaLayer, manzanasLayer, sueloLayer, viasLayer, limitesLayer, projLayer, sketchLayer]);
+        const HUELLA_COLORS = { 1985: [30, 41, 59], 2003: [100, 116, 139], 2013: [203, 213, 225] };
 
         // ---------- Controles de capas ----------
         const layerDefs = [
@@ -931,7 +1267,8 @@ window.addEventListener("DOMContentLoaded", () => {
             { key: "manz", label: "Manzanas (al acercarse)", get: () => manzanasLayer, opacity: 1, checked: true },
             { key: "vias", label: "Sistema vial propuesto", get: () => viasLayer, opacity: 0.9, checked: true },
             { key: "lim", label: "Límites distritales", get: () => limitesLayer, opacity: 1, checked: true },
-            { key: "suelo", label: "Valor de suelo observado (puntos)", get: () => sueloLayer, opacity: 1, checked: false }
+            { key: "suelo", label: "Valor de suelo observado (puntos)", get: () => sueloLayer, opacity: 1, checked: false },
+            { key: "huella", label: "Mancha urbana 1985 / 2003 / 2013", get: () => huellaLayer, opacity: 0.55, checked: false }
         ];
         const layerState = {};
         $("layer-controls").innerHTML = layerDefs.map(l => `
@@ -1106,8 +1443,70 @@ window.addEventListener("DOMContentLoaded", () => {
         // ---------- Capa de resultados ----------
         const FIELD_LABEL = {
             BASE: "Empleos actuales", PROY: "Empleos proyectados", NUEVO: "Empleos nuevos",
-            DIF: "Diferencia de empleos vs referencia", VALOR: "Valor de suelo estimado", DVALOR: "Cambio del valor de suelo vs referencia"
+            DIF: "Diferencia de empleos vs referencia", VALOR: "Valor de suelo estimado", DVALOR: "Cambio del valor de suelo vs referencia",
+            EXP_VAL: "Validación de la expansión urbana 2003→2013", EXP_PROY: "Expansión urbana proyectada", VIAJES: "Viajes atraídos por zona"
         };
+        const cellSquare = (Rr, i) => {
+            const x = cellX(Rr, i), y = cellY(Rr, i), h = Rr.cs / 2;
+            return { type: "polygon", rings: [[[x - h, y - h], [x - h, y + h], [x + h, y + h], [x + h, y - h], [x - h, y - h]]], spatialReference: { wkid: 102100 } };
+        };
+        async function setClientLayer(current, graphics, fields, renderer, title, popupTemplate) {
+            if (current) map.remove(current);
+            const layer = new FeatureLayer({ source: graphics, title, objectIdField: "OID", geometryType: "polygon", spatialReference: { wkid: 102100 },
+                fields: [{ name: "OID", type: "oid" }, ...fields], renderer, popupEnabled: !!popupTemplate, popupTemplate });
+            map.add(layer, 2);
+            return layer;
+        }
+        async function showExpansion(mode) {
+            const X = D.exp;
+            let cells, legend;
+            const sym = c => new SimpleFillSymbol({ color: c, outline: null });
+            if (mode === "EXP_VAL") {
+                const actual = new Set(X.val.actual), all = new Set([...X.val.predSet, ...actual]);
+                cells = [...all].map(i => ({ i, c: X.val.predSet.has(i) && actual.has(i) ? "Acierto" : actual.has(i) ? "No previsto" : "Falsa alarma" }));
+                legend = [["Acierto: se predijo y se urbanizó", "#16a34a"], ["No previsto: se urbanizó sin predecirlo", "#f97316"], ["Falsa alarma: se predijo y no se urbanizó", "#94a3b8"]];
+            } else {
+                const P = R.expProj;
+                const withP = new Set(P.chosen), base = new Set(P.base ? P.base.chosen : P.chosen), all = new Set([...withP, ...base]);
+                cells = [...all].map(i => ({ i, c: withP.has(i) && base.has(i) ? "Proyectada" : withP.has(i) ? "Por vías nuevas" : "Desplazada" }));
+                legend = [[`Urbanización proyectada a ${R.P.year}`, "#7c3aed"], ["Atraída por las vías nuevas dibujadas", "#db2777"], ["Ya no se urbaniza por las vías nuevas", "#cbd5e1"]];
+            }
+            const graphics = cells.map((c, k) => new Graphic({ geometry: cellSquare(X.Rr, c.i), attributes: { OID: k + 1, CLASE: c.c } }));
+            const renderer = new UniqueValueRenderer({ field: "CLASE", uniqueValueInfos: [
+                { value: "Acierto", symbol: sym([22, 163, 74, 0.85]) }, { value: "No previsto", symbol: sym([249, 115, 22, 0.85]) },
+                { value: "Falsa alarma", symbol: sym([148, 163, 184, 0.75]) }, { value: "Proyectada", symbol: sym([124, 58, 237, 0.75]) },
+                { value: "Por vías nuevas", symbol: sym([219, 39, 119, 0.9]) }, { value: "Desplazada", symbol: sym([203, 213, 225, 0.7]) }] });
+            expLayer = await setClientLayer(expLayer, graphics, [{ name: "CLASE", type: "string" }], renderer, FIELD_LABEL[mode]);
+            huellaLayer.visible = true;
+            const sq = c => `<span class="inline-block w-3 h-3" style="background:${c}"></span>`;
+            const hz = [1985, 2003, 2013].map(y => `<span class="inline-flex items-center gap-1 mr-2">${sq(`rgb(${HUELLA_COLORS[y].join(",")})`)} ${y}</span>`).join("");
+            $("legend-body").innerHTML = legend.map(([t, c]) => `<div class="flex items-center gap-2">${sq(c)} ${t}</div>`).join("")
+                + `<div class="pt-1">Mancha urbana: ${hz}</div><p class="text-slate-400">Cada cuadrado es 1 ha. ${mode === "EXP_VAL" ? `El modelo, entrenado solo con 1985→2003, eligió las ${fmt(X.val.nNew)} ha más probables para 2003→2013.` : `Se urbanizan ${fmt(R.expProj.n)} ha (ritmo 2003–2013 × años desde 2013).`}</p>`;
+        }
+        async function showZones() {
+            const T = R.trips;
+            const graphics = T.zones.map((z, k) => new Graphic({ geometry: { type: "polygon", rings: D.zones[z.i].rings, spatialReference: { wkid: 102100 } },
+                attributes: { OID: k + 1, COD: z.cod, DIST: z.name, OBS: z.obs, BASE: z.base, S1: z.s1, ADIC: z.s1 - z.base, DREF: z.s1 - z.ref, EMP: z.emp } }));
+            const v = T.zones.map(z => z.s1 - z.base).sort((a, b) => a - b);
+            const qs = [0.2, 0.4, 0.6, 0.8].map(q => v[Math.floor(q * (v.length - 1))]);
+            const edges = [-1e12, ...qs, 1e12], cols = [[220, 252, 231], [134, 239, 172], [34, 197, 94], [21, 128, 61], [20, 83, 45]];
+            const renderer = new ClassBreaksRenderer({ field: "ADIC", classBreakInfos: cols.map((c, i) => ({ minValue: edges[i], maxValue: edges[i + 1],
+                symbol: new SimpleFillSymbol({ color: [...c, 0.8], outline: { color: [255, 255, 255, 0.9], width: 0.8 } }) })) });
+            const popupTemplate = { title: "Zona {COD} · {DIST}", content: [{ type: "fields", fieldInfos: [
+                { fieldName: "OBS", label: "Viajes atraídos (modelo ATU)", format: { places: 0, digitSeparator: true } },
+                { fieldName: "BASE", label: "Viajes atraídos hoy (este modelo)", format: { places: 0, digitSeparator: true } },
+                { fieldName: "S1", label: `Viajes atraídos ${R.P.year} (escenario)`, format: { places: 0, digitSeparator: true } },
+                { fieldName: "ADIC", label: "Viajes adicionales vs hoy", format: { places: 0, digitSeparator: true } },
+                { fieldName: "DREF", label: "Diferencia vs referencia", format: { places: 0, digitSeparator: true } },
+                { fieldName: "EMP", label: "Empleos hoy en la zona", format: { places: 0, digitSeparator: true } }] }] };
+            zonesLayer = await setClientLayer(zonesLayer, graphics, [{ name: "COD", type: "string" }, { name: "DIST", type: "string" }, { name: "OBS", type: "double" },
+                { name: "BASE", type: "double" }, { name: "S1", type: "double" }, { name: "ADIC", type: "double" }, { name: "DREF", type: "double" }, { name: "EMP", type: "double" }],
+                renderer, FIELD_LABEL.VIAJES, popupTemplate);
+            const sq = c => `<span class="inline-block w-3 h-3" style="background:rgb(${c.join(",")})"></span>`;
+            $("legend-body").innerHTML = `<p>Viajes atraídos <b>adicionales</b> al ${R.P.year} frente a hoy, por zona de tránsito (haz clic en una zona).</p>`
+                + cols.map((c, i) => `<div class="flex items-center gap-2">${sq(c)} ${i === 0 ? `hasta ${fmt(qs[0])}` : i === 4 ? `más de ${fmt(qs[3])}` : `${fmt(qs[i - 1])} a ${fmt(qs[i])}`}</div>`).join("")
+                + `<p class="text-slate-400">Solo ${T.n} zonas ATU con datos en Lima Norte. Unidades del modelo ATU.</p>`;
+        }
         async function buildResultLayer() {
             const graphics = [];
             for (let j = 0; j < D.n; j++) {
@@ -1156,6 +1555,19 @@ window.addEventListener("DOMContentLoaded", () => {
             if (!resultLayer || !R) return;
             const mode = $("view-mode").value;
             $("legend-title").textContent = `Leyenda · ${FIELD_LABEL[mode]}`;
+            const isExp = mode === "EXP_VAL" || mode === "EXP_PROY", isTrips = mode === "VIAJES";
+            resultLayer.visible = !isExp && !isTrips && layerState.result.visible;
+            if (expLayer) expLayer.visible = isExp;
+            if (zonesLayer) zonesLayer.visible = isTrips;
+            huellaLayer.visible = isExp || layerState.huella.visible;
+            if (isExp) {
+                if (!D.exp) { $("legend-body").innerHTML = "<p>El modelo de expansión urbana no está disponible (no se pudo cargar la mancha urbana histórica).</p>"; return; }
+                return showExpansion(mode);
+            }
+            if (isTrips) {
+                if (!R.trips) { $("legend-body").innerHTML = "<p>El modelo de viajes no está disponible (faltan zonas ATU con datos en Lima Norte).</p>"; return; }
+                return showZones();
+            }
             const usedVals = f => { const v = []; for (let j = 0; j < D.n; j++) if (R.used[j]) v.push(f(j)); return v; };
 
             if ((mode === "VALOR" || mode === "DVALOR") && !R.hed) {
@@ -1174,7 +1586,8 @@ window.addEventListener("DOMContentLoaded", () => {
                 const intro = isVal
                     ? `<p>Cambio del valor de suelo estimado en ${R.P.year} frente a la referencia.</p>`
                     : `<p>Empleos nuevos que cada manzana gana o pierde frente a la referencia.</p>`;
-                $("legend-body").innerHTML = intro + divergingRenderer(mode, q, isVal ? " %" : " empleos", isVal ? 1 : 1);
+                const dec = q >= 10 ? 0 : q >= 1 ? 1 : q >= 0.1 ? 2 : 3;   // más decimales cuando los cambios son pequeños
+                $("legend-body").innerHTML = intro + divergingRenderer(mode, q, isVal ? " %" : " empleos", dec);
                 return;
             }
             if (mode === "VALOR") {
@@ -1227,7 +1640,55 @@ window.addEventListener("DOMContentLoaded", () => {
                         <div><span class="text-slate-500 block">Δ empleos ${esc(s.zoneLabel || "")}</span><b class="${s.zoneJobs >= 0 ? "text-rose-600" : "text-blue-600"}">${s.zoneJobs >= 0 ? "+" : ""}${fmt(s.zoneJobs)}</b></div>
                         <div><span class="text-slate-500 block">Δ valor de suelo</span><b class="text-amber-700">${s.zoneVal == null ? "—" : pct(s.zoneVal)}</b></div>
                     </div>
+                    ${s.trips != null && s.direct > 0 ? `<div class="text-[10px] text-emerald-700 mt-1"><i class="fa-solid fa-bus"></i> Sus empleos directos atraerían ≈ <b>${fmt(s.trips)}</b> viajes (modelo de viajes calibrado)</div>` : ""}
                 </div>`).join("");
+
+            // ---- Predicciones validadas ----
+            const verdict = (better, txtOk, txtNo) => better
+                ? `<div class="text-emerald-700 mt-0.5">✅ ${txtOk}</div>` : `<div class="text-amber-700 mt-0.5">⚠️ ${txtNo}</div>`;
+            if (D.exp) {
+                const X = D.exp, v = X.val, ep = R.expProj;
+                let moved = 0;
+                if (ep && ep.base) { const b = new Set(ep.base.chosen); moved = ep.chosen.filter(i => !b.has(i)).length; }
+                const coefs = X.FEAT_NAMES.map((nm, k) => `<tr><td>${nm}</td><td class="text-right font-mono">${fmt(X.final.b[k + 1], 2)}</td></tr>`).join("");
+                $("k-exp").innerHTML = `
+                    <div>Entrenado con 1985→2003 y probado prediciendo 2003→2013 (${fmt(v.nNew)} ha que realmente se urbanizaron en Lima Norte).</div>
+                    <div class="grid grid-cols-2 gap-1 mt-1">
+                        <div><span class="text-slate-500 block">Aciertos en las ${fmt(v.nNew)} ha más probables</span><b class="text-sky-800 text-sm">${fmt(v.hitModel * 100, 1)}%</b> <span class="text-slate-400">regla simple ${fmt(v.hitNull * 100, 1)}%</span></div>
+                        <div><span class="text-slate-500 block">AUC (0.5 = azar · 1 = perfecto)</span><b class="text-sky-800 text-sm">${fmt(v.aucModel, 3)}</b> <span class="text-slate-400">regla simple ${fmt(v.aucNull, 3)}</span></div>
+                    </div>
+                    ${verdict(v.hitModel > v.hitNull + 0.01, "El modelo supera a la regla simple (urbanizar lo más cercano a la ciudad).", "El modelo no supera claramente a la regla simple: úsese con cautela.")}
+                    <div class="mt-1">Proyección: <b>${fmt(ep ? ep.n : 0)} ha</b> nuevas entre 2013 y ${R.P.year} (ritmo observado ${fmt(X.ratePerYear)} ha/año).
+                        Mancha urbana en Lima Norte: ${fmt(X.urbanHa[0])} ha (1985) → ${fmt(X.urbanHa[1])} (2003) → ${fmt(X.urbanHa[2])} (2013).</div>
+                    ${ep && ep.base ? `<div class="text-violet-700">Las vías nuevas dibujadas cambian la ubicación de <b>${fmt(moved)} ha</b> de la expansión proyectada.</div>` : ""}
+                    <details class="mt-1"><summary class="cursor-pointer text-slate-500">Coeficientes estandarizados (signo: + favorece urbanizar)</summary>
+                        <table class="w-full">${coefs}</table></details>`;
+            } else if (D.expError) {
+                $("k-exp").textContent = `No disponible: ${D.expError}`;
+            }
+            if (R.hed) {
+                const h = R.hed, cv = h.cv;
+                $("k-hedcv").innerHTML = `
+                    <div>Estimado con ${fmt(h.n)} precios reales (avisos 2019–2020)${h.spec.useCensus ? " + censo por manzana (estrato y densidad)" : " (sin datos de censo)"} + distrito.</div>
+                    <div class="grid grid-cols-2 gap-1 mt-1">
+                        <div><span class="text-slate-500 block">Error típico fuera de muestra</span><b class="text-sky-800 text-sm">±${fmt(cv.mdape * 100, 0)}%</b> <span class="text-slate-400">regla simple ±${fmt(cv.mdapeBase * 100, 0)}%</span></div>
+                        <div><span class="text-slate-500 block">R² fuera de muestra</span><b class="text-sky-800 text-sm">${fmt(cv.r2, 2)}</b> <span class="text-slate-400">regla simple ${fmt(cv.r2Base, 2)}</span></div>
+                    </div>
+                    ${verdict(cv.mdape < cv.mdapeBase - 0.005, "El modelo predice mejor que usar la mediana del distrito.", "No mejora a la mediana del distrito: el precio depende de factores que no están en los datos.")}
+                    <div class="text-slate-400">Validación cruzada de ${cv.k} grupos: cada precio se predice con un modelo que no lo vio.${D.census ? ` Unión censo–manzanas: ${fmt(D.censusMatch * 100, 0)}%.` : ""}</div>`;
+            } else $("k-hedcv").textContent = "No disponible (faltan registros de valor de suelo).";
+            if (R.trips) {
+                const T = R.trips;
+                $("k-trips").innerHTML = `
+                    <div>Calibrado con ${T.n} zonas de tránsito ATU en Lima Norte: cada empleo atrae ≈ <b>${fmt(T.perJob, 2)}</b> viajes${T.usePop ? ` y cada habitante ≈ <b>${fmt(T.perHab, 2)}</b>` : ""}.</div>
+                    <div class="grid grid-cols-2 gap-1 mt-1">
+                        <div><span class="text-slate-500 block">Error típico (zona fuera)</span><b class="text-sky-800 text-sm">±${fmt(T.cv.mdape * 100, 0)}%</b></div>
+                        <div><span class="text-slate-500 block">R² dejando una zona fuera</span><b class="text-sky-800 text-sm">${fmt(T.cv.r2, 2)}</b></div>
+                    </div>
+                    ${verdict(T.cv.r2 > 0.3 && T.perJob > 0, "La relación empleo–viajes es consistente entre zonas.", "La relación es débil o inconsistente: interprétese con cautela.")}
+                    <div class="mt-1">Al ${R.P.year}: <b>${fmt(T.totS1 - T.totBase)}</b> viajes atraídos adicionales en esas zonas (${pct(T.totS1 / T.totBase - 1)}); frente a la referencia: ${T.totS1 - T.totRef >= 0 ? "+" : ""}${fmt(T.totS1 - T.totRef)}.</div>
+                    <div class="text-slate-400">Los viajes de la ATU son salidas de otro modelo (no conteos). Unidades según ese modelo.</div>`;
+            } else $("k-trips").textContent = D.zonesError ? `No disponible: ${D.zonesError}` : "No disponible (faltan zonas ATU con datos).";
 
             const hasRoads = R.activeRoads.length || R.newRoads.length;
             if (hasRoads && R.hasDist) {
@@ -1248,7 +1709,9 @@ window.addEventListener("DOMContentLoaded", () => {
                 const sig = t => Math.abs(t) >= 2 ? "" : ` <span class="text-red-600">(no significativo, |t| &lt; 2)</span>`;
                 $("k-hed").innerHTML = `
                     <div class="font-semibold text-slate-700">Modelo hedónico estimado con ${fmt(h.n)} registros (R² = ${fmt(h.R2, 2)})</div>
-                    <div class="font-mono">ln(S/m²) = ${fmt(h.b[0], 3)} ${h.b[1] >= 0 ? "+" : "−"} ${fmt(Math.abs(h.b[1]), 3)}·d<sub>km</sub> ${h.b[2] >= 0 ? "+" : "−"} ${fmt(Math.abs(h.b[2]), 3)}·ln(1+J)</div>
+                    <div class="font-mono">ln(S/m²) = b<sub>0</sub> ${h.b[1] >= 0 ? "+" : "−"} ${fmt(Math.abs(h.b[1]), 3)}·d<sub>km</sub> ${h.b[2] >= 0 ? "+" : "−"} ${fmt(Math.abs(h.b[2]), 3)}·ln(1+J) + censo + distrito</div>
+                    <details><summary class="cursor-pointer text-slate-500">Ver todos los coeficientes</summary><table class="w-full">${h.names.map((nm, i) =>
+                        `<tr><td>${esc(nm)}</td><td class="text-right font-mono">${fmt(h.b[i], 3)}</td><td class="text-right font-mono ${Math.abs(h.t[i]) < 2 ? "text-red-600" : ""}">t=${fmt(h.t[i], 1)}</td></tr>`).join("")}</table></details>
                     <div>• Cada km más lejos de una vía: precio ${pct(Math.exp(h.b[1]) - 1)} (t = ${fmt(h.t[1], 1)})${sig(h.t[1])}</div>
                     <div>• Duplicar los empleos a ≤ 1 km: precio ${pct(Math.pow(2, h.b[2]) - 1)} (t = ${fmt(h.t[2], 1)})${sig(h.t[2])}</div>
                     <div class="text-slate-400">R² indica qué parte de la variación de precios explica el modelo (0 = nada, 1 = todo).</div>`;
@@ -1295,6 +1758,11 @@ window.addEventListener("DOMContentLoaded", () => {
                 await new Promise(r => setTimeout(r, 30));
                 R = runModel(P, projects);
                 if (Math.abs(R.checkSum - R.expectedSum) > Math.max(1, R.expectedSum * 1e-9)) throw new Error("Control de suma fallido");
+                if (D.exp) {
+                    const nr = R.newRoads.map(r => ({ paths: r.paths }));
+                    R.expProj = projectExpansion(D.exp, P.year, nr);
+                    if (nr.length) R.expProj.base = projectExpansion(D.exp, P.year, []);
+                }
                 updateRoadFilter(P);
                 updateIndicators();
                 await buildResultLayer();
@@ -1323,7 +1791,7 @@ window.addEventListener("DOMContentLoaded", () => {
             const num = (v, d) => (v == null || !Number.isFinite(v)) ? "" : v.toFixed(d);
             const rows = [["IDMANZANA", "UBIGEO", "DISTRITO", "EMP_TOTAL_ORIGINAL", "EXCLUIDA", "EMP_BASE", "EMPLEOS_1KM_BASE", "DIST_VIA_M", "VIA_CERCANA",
                 "EMP_DIRECTOS_PROYECTOS", "NUEVOS_REFERENCIA", "NUEVOS_ESCENARIO", "PROYECTADO_ESCENARIO", "DIFERENCIA",
-                "VALOR_SUELO_HOY", "VALOR_SUELO_REF", "VALOR_SUELO_ESCENARIO", "CAMBIO_VALOR_VS_REF_PCT", "REFERENCIA"].join(",")];
+                "VALOR_SUELO_HOY", "VALOR_SUELO_REF", "VALOR_SUELO_ESCENARIO", "CAMBIO_VALOR_VS_REF_PCT", "REFERENCIA", "POBLACION_CENSO", "ESTRATO_COD", "ZONA_ATU"].join(",")];
             for (let j = 0; j < D.n; j++) {
                 const u = R.used[j];
                 rows.push([q(D.ids[j]), q(D.ubigeo[j]), q(D.districtNames[D.ubigeo[j]]),
@@ -1331,7 +1799,9 @@ window.addEventListener("DOMContentLoaded", () => {
                     u ? R.E[j] : "", u ? num(R.Jb[j], 0) : "", u ? num(R.dist[j], 0) : "", q(u ? roadLabel(j) : ""),
                     u ? num(R.Dd[j], 2) : "", u ? num(R.ref[j], 4) : "", u ? num(R.newS1[j], 4) : "", u ? num(R.E[j] + R.newS1[j], 4) : "", u ? num(R.dif[j], 4) : "",
                     u && R.priceBase ? num(R.priceBase[j], 0) : "", u && R.priceRef ? num(R.priceRef[j], 0) : "", u && R.priceS1 ? num(R.priceS1[j], 0) : "",
-                    u && R.dval ? num(R.dval[j] * 100, 3) : "", q(R.refLabel)].join(","));
+                    u && R.dval ? num(R.dval[j] * 100, 3) : "", q(R.refLabel),
+                    D.census && D.census.matched[j] ? D.census.pop[j] : "", D.census && D.census.matched[j] ? D.census.est[j] : "",
+                    q(D.blockZone && D.blockZone[j] >= 0 ? D.zones[D.blockZone[j]].cod : "")].join(","));
             }
             const blob = new Blob(["﻿" + rows.join("\n")], { type: "text/csv;charset=utf-8" });
             const a = document.createElement("a");
@@ -1366,6 +1836,7 @@ window.addEventListener("DOMContentLoaded", () => {
                 body = `
                     <tr><td>EMP_TOTAL (servidor)</td><td><b>${raw}</b></td></tr>
                     <tr><td>Empleos a ≤ 1 km (hoy)</td><td>${fmt(R.Jb[j])}</td></tr>
+                    ${D.census && D.census.matched[j] ? `<tr><td>Población (censo)</td><td>${fmt(D.census.pop[j])} hab. · estrato ${["sin dato", "bajo", "medio bajo", "medio", "medio alto", "alto"][D.census.est[j]] || "—"}</td></tr>` : ""}
                     <tr><td>Vía activa más cercana</td><td>${Number.isFinite(R.dist[j]) ? `${esc(roadLabel(j))} a <b>${fmt(R.dist[j])} m</b>` : "—"}</td></tr>
                     ${R.Dd[j] > 0 ? `<tr><td>Empleos directos de proyectos</td><td><b class="text-violet-700">${fmt(R.Dd[j], 1)}</b></td></tr>` : ""}
                     <tr><td>Nuevos (referencia)</td><td>${fmt(R.ref[j], 2)}</td></tr>
@@ -1429,7 +1900,85 @@ window.addEventListener("DOMContentLoaded", () => {
                     D.soilMedian = v.length ? (v.length % 2 ? v[(v.length - 1) / 2] : (v[v.length / 2 - 1] + v[v.length / 2]) / 2) : null;
                 } catch (e) { console.warn("Valor de suelo no disponible", e); }
 
-                loading("Calculando...", 95);
+                // ---- Censo por manzana (unión por IDMANZANA) ----
+                loading("Descargando datos de población por manzana...", 90);
+                try {
+                    const c = await fetchAll(URL_CENSO, { where: `UBIGEO IN (${Object.keys(LIMA_NORTE).join(",")})`, outFields: "ObjectId,IDMANZANA,POBLACION,DENSPOB,COD_EST_SO", returnGeometry: false }, "ObjectId");
+                    const byId = new globalThis.Map();
+                    c.features.forEach(f => byId.set(String(f.attributes.IDMANZANA).trim().toUpperCase(), f.attributes));
+                    D.census = { pop: new Float64Array(n), dens: new Float64Array(n), est: new Int8Array(n), matched: new Uint8Array(n) };
+                    let m = 0;
+                    for (let j = 0; j < n; j++) {
+                        const a = byId.get(String(D.ids[j]).trim().toUpperCase());
+                        if (!a) continue;
+                        m++; D.census.matched[j] = 1;
+                        D.census.pop[j] = Number(a.POBLACION) || 0;
+                        D.census.dens[j] = parseFloat(a.DENSPOB) || 0;
+                        D.census.est[j] = Number(a.COD_EST_SO) || 0;
+                    }
+                    D.censusMatch = m / n;
+                    console.info(`Censo: ${c.features.length} registros, ${m} manzanas unidas (${(100 * m / n).toFixed(1)}%)`);
+                } catch (e) { console.warn("Censo no disponible", e); D.census = null; }
+                // Manzana más cercana a cada registro de valor de suelo (para sus variables de censo y distrito)
+                if (D.soil) {
+                    const all = new Uint8Array(n).fill(1);
+                    D.soil.forEach(s => {
+                        const j = nearestBlock(s.x, s.y, all);
+                        s.jb = j >= 0 && Math.hypot(D.X[j] - s.x, D.Y[j] - s.y) * s.cos <= 500 ? j : -1;
+                    });
+                }
+
+                // ---- Zonas de tránsito ATU (viajes atraídos) ----
+                loading("Descargando zonas de viajes (ATU)...", 92);
+                try {
+                    const zw = `NOMBDIST IN (${ZONAS_LN.map(s => `'${s}'`).join(",")})`;
+                    const z = await fetchAll(URL_ZONAS, { where: zw, outFields: "OBJECTID,COD_VIAJE,NOMBDIST,V_PUB_ATR,V_PRI_ATR,V_PUB_GEN,V_PRI_GEN", returnGeometry: true, outSR: 102100, maxAllowableOffset: 5 }, "OBJECTID");
+                    D.zones = z.features.filter(f => f.geometry && f.geometry.rings).map(f => {
+                        const a = f.attributes;
+                        return { name: a.NOMBDIST, cod: a.COD_VIAJE, atr: (a.V_PUB_ATR || 0) + (a.V_PRI_ATR || 0), gen: (a.V_PUB_GEN || 0) + (a.V_PRI_GEN || 0), rings: f.geometry.rings, bbox: ringsBBox(f.geometry.rings) };
+                    });
+                    D.blockZone = new Int32Array(n).fill(-1);
+                    for (let j = 0; j < n; j++) {
+                        const x = D.X[j], y = D.Y[j];
+                        for (let k = 0; k < D.zones.length; k++) {
+                            const b = D.zones[k].bbox;
+                            if (x < b.xmin || x > b.xmax || y < b.ymin || y > b.ymax) continue;
+                            if (pointInRings(x, y, D.zones[k].rings)) { D.blockZone[j] = k; break; }
+                        }
+                    }
+                    if (!D.zones.length) D.zonesError = "no hay zonas ATU en estos distritos";
+                } catch (e) { console.warn("Zonas ATU no disponibles", e); D.zones = null; D.zonesError = e.message; }
+
+                // ---- Expansión urbana: mancha 1985 / 2003 / 2013 ----
+                loading("Descargando la mancha urbana histórica...", 94);
+                try {
+                    const lim = await queryREST(URL_LIMITES, { where: WHERE_LN, outFields: "UBIGEO", returnGeometry: true, outSR: 102100, maxAllowableOffset: 20 });
+                    const distRings = (lim.features || []).filter(f => f.geometry).map(f => f.geometry.rings);
+                    if (!distRings.length) throw new Error("sin límites distritales");
+                    const bb = ringsBBox(distRings.flat());
+                    const Rr = makeRaster(bb, EXP_CELL_M), mask = new Uint8Array(Rr.n);
+                    distRings.forEach(rings => { const r = rasterize(rings, Rr); for (let i = 0; i < Rr.n; i++) if (r[i]) mask[i] = 1; });
+                    const U = [];
+                    for (const h of HUELLAS) {
+                        const res = await queryREST(h.url, { where: "1=1", outFields: "OBJECTID", returnGeometry: true, outSR: 102100, maxAllowableOffset: 10 });
+                        const rings = (res.features || []).filter(f => f.geometry && f.geometry.rings).flatMap(f => f.geometry.rings);
+                        if (!rings.length) throw new Error(`mancha ${h.year} sin geometría`);
+                        U.push(rasterize(rings, Rr));
+                        huellaLayer.add(new Graphic({ geometry: { type: "polygon", rings, spatialReference: { wkid: 102100 } },
+                            symbol: new SimpleFillSymbol({ color: [...HUELLA_COLORS[h.year], h.year === 2013 ? 0.5 : 0.6], outline: { color: [255, 255, 255, 0.6], width: 0.4 } }) }));
+                    }
+                    huellaLayer.graphics.reverse();   // dibuja 2013 abajo y 1985 encima
+                    loading("Entrenando y validando el modelo de expansión urbana...", 97);
+                    await new Promise(r => setTimeout(r, 20));
+                    const cx = [], cy = [], cc = [], idx = [];
+                    for (let i = 0; i < Rr.n; i++) if (mask[i]) { idx.push(i); cx.push(cellX(Rr, i)); cy.push(cellY(Rr, i)); cc.push(COS0); }
+                    const dr = distancesTo(D.roads, cx, cy, cc, null).dist, dRoadCells = new Float64Array(Rr.n);
+                    idx.forEach((i, t) => dRoadCells[i] = dr[t]);
+                    D.exp = buildExpansion(mask, U, Rr, dRoadCells);
+                    if (!(D.exp.val.nNew > 0)) throw new Error("no hubo celdas nuevas 2003→2013 en Lima Norte");
+                } catch (e) { console.warn("Expansión urbana no disponible", e); D.exp = null; D.expError = e.message; }
+
+                loading("Calculando...", 98);
                 $("loading").classList.add("hidden");
                 $("btn-run").disabled = false;
                 $("btn-add-proj").disabled = false;
