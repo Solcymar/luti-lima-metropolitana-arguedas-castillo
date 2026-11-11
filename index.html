@@ -44,6 +44,9 @@
         </div>
 
         <div class="flex items-center space-x-2 shrink-0">
+            <button id="btn-fullmap" title="Ocultar o mostrar ambos paneles" class="bg-white hover:bg-slate-50 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-medium border border-slate-300 flex items-center gap-1.5 shadow-sm">
+                <i class="fa-solid fa-expand"></i><span class="hidden sm:inline">Mapa completo</span>
+            </button>
             <button id="btn-method" class="bg-white hover:bg-slate-50 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-medium border border-slate-300 flex items-center gap-1.5 shadow-sm">
                 <i class="fa-solid fa-diagram-project text-amber-600"></i><span class="hidden sm:inline">Metodología</span>
             </button>
@@ -133,12 +136,16 @@
 
         <!-- ============ PANEL IZQUIERDO: CONTROLES ============ -->
         <aside id="control-panel" class="absolute top-4 left-4 w-[22rem] max-h-[calc(100vh-6rem)] bg-white/95 backdrop-blur-md border border-slate-200 rounded-2xl shadow-xl z-10 flex flex-col">
-            <div class="p-3.5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 rounded-t-2xl">
+            <div class="p-3 border-b border-slate-100 flex justify-between items-center gap-2 bg-slate-50/50 rounded-t-2xl">
                 <h2 class="font-bold text-xs text-slate-800 flex items-center gap-2 uppercase tracking-wider"><i class="fa-solid fa-layer-group text-rose-600"></i> Simulador &amp; capas</h2>
-                <span id="layer-status" class="text-[10px] text-slate-600 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-full font-mono">Cargando...</span>
+                <div class="flex items-center gap-1">
+                    <span id="layer-status" class="text-[10px] text-slate-600 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-full font-mono">Cargando...</span>
+                    <button data-min="control" title="Minimizar / expandir" class="w-7 h-7 rounded-lg hover:bg-slate-200 text-slate-500"><i class="fa-solid fa-chevron-up"></i></button>
+                    <button data-close="control" title="Ocultar panel" class="w-7 h-7 rounded-lg hover:bg-slate-200 text-slate-500"><i class="fa-solid fa-xmark"></i></button>
+                </div>
             </div>
 
-            <div class="p-4 space-y-4 overflow-y-auto custom-scrollbar flex-1 text-xs">
+            <div id="control-body" class="p-4 space-y-4 overflow-y-auto custom-scrollbar flex-1 text-xs">
                 <!-- Escenario -->
                 <div class="space-y-1.5 bg-rose-50/50 p-3 rounded-xl border border-rose-100">
                     <label class="text-[11px] font-bold text-rose-700 uppercase tracking-wider block">Escenario vial</label>
@@ -240,9 +247,13 @@
         <aside id="dashboard-panel" class="absolute top-4 right-4 w-[24rem] max-h-[calc(100vh-6rem)] bg-white/95 backdrop-blur-md border border-slate-200 rounded-2xl shadow-xl z-10 flex flex-col">
             <div class="p-3.5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 rounded-t-2xl">
                 <h2 class="font-bold text-xs text-slate-800 flex items-center gap-2 uppercase tracking-wider"><i class="fa-solid fa-chart-pie text-emerald-600"></i> Indicadores</h2>
-                <span class="text-[10px] text-slate-400">calculados desde los datos</span>
+                <div class="flex items-center gap-1">
+                    <span class="text-[10px] text-slate-400 hidden sm:inline">calculados desde los datos</span>
+                    <button data-min="dashboard" title="Minimizar / expandir" class="w-7 h-7 rounded-lg hover:bg-slate-200 text-slate-500"><i class="fa-solid fa-chevron-up"></i></button>
+                    <button data-close="dashboard" title="Ocultar panel" class="w-7 h-7 rounded-lg hover:bg-slate-200 text-slate-500"><i class="fa-solid fa-xmark"></i></button>
+                </div>
             </div>
-            <div class="p-4 space-y-3 overflow-y-auto custom-scrollbar flex-1 text-xs text-slate-600">
+            <div id="dashboard-body" class="p-4 space-y-3 overflow-y-auto custom-scrollbar flex-1 text-xs text-slate-600">
                 <div class="grid grid-cols-2 gap-2">
                     <div class="bg-slate-50 p-3 rounded-xl border border-slate-200">
                         <span class="text-[10px] text-slate-400 block uppercase font-medium">Empleos base</span>
@@ -555,8 +566,36 @@ window.addEventListener("DOMContentLoaded", () => {
     // Modal y paneles
     $("btn-method").onclick = () => $("modal-method").classList.remove("hidden");
     document.querySelectorAll(".btn-close-method").forEach(b => b.onclick = () => $("modal-method").classList.add("hidden"));
-    $("btn-toggle-panel").onclick = () => $("control-panel").classList.toggle("hidden");
-    $("btn-toggle-dashboard").onclick = () => $("dashboard-panel").classList.toggle("hidden");
+    // ---- Paneles: ocultar, minimizar y mapa completo ----
+    const panels = {
+        control:   { aside: $("control-panel"),   body: $("control-body"),   btn: $("btn-toggle-panel"),     visible: true, min: false },
+        dashboard: { aside: $("dashboard-panel"), body: $("dashboard-body"), btn: $("btn-toggle-dashboard"), visible: true, min: false }
+    };
+    function renderPanel(key) {
+        const p = panels[key];
+        p.aside.classList.toggle("hidden", !p.visible);
+        p.body.classList.toggle("hidden", p.min);
+        const icon = p.aside.querySelector(`[data-min="${key}"] i`);
+        icon.className = p.min ? "fa-solid fa-chevron-down" : "fa-solid fa-chevron-up";
+        p.btn.classList.toggle("ring-2", p.visible);
+        p.btn.classList.toggle("ring-rose-300", p.visible);
+        const allHidden = !panels.control.visible && !panels.dashboard.visible;
+        $("btn-fullmap").querySelector("i").className = allHidden ? "fa-solid fa-compress" : "fa-solid fa-expand";
+        $("btn-fullmap").querySelector("span").textContent = allHidden ? "Mostrar paneles" : "Mapa completo";
+    }
+    const setPanel = (key, changes) => { Object.assign(panels[key], changes); renderPanel(key); };
+    $("btn-toggle-panel").onclick = () => setPanel("control", { visible: !panels.control.visible, min: false });
+    $("btn-toggle-dashboard").onclick = () => setPanel("dashboard", { visible: !panels.dashboard.visible, min: false });
+    document.querySelectorAll("[data-min]").forEach(b => b.onclick = () => setPanel(b.dataset.min, { min: !panels[b.dataset.min].min }));
+    document.querySelectorAll("[data-close]").forEach(b => b.onclick = () => setPanel(b.dataset.close, { visible: false }));
+    $("btn-fullmap").onclick = () => {
+        const show = !panels.control.visible && !panels.dashboard.visible;
+        setPanel("control", { visible: show, min: false });
+        setPanel("dashboard", { visible: show, min: false });
+    };
+    // En pantallas pequeñas (celular) los paneles empiezan ocultos para ver el mapa completo
+    if (window.innerWidth < 768) { panels.control.visible = false; panels.dashboard.visible = false; }
+    renderPanel("control"); renderPanel("dashboard");
 
     // Checkboxes de clases viales
     $("road-classes").innerHTML = CLASES.map(c => `
