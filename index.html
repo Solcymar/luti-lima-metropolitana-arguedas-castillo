@@ -229,6 +229,11 @@
                         <option value="tendencial" selected>Tendencial (sin efecto vial ni proyectos)</option>
                         <option value="sinproy">Mismo escenario vial, sin proyectos</option>
                     </select>
+                    <label class="text-[11px] text-slate-600 block pt-1">Dibujar resultados por manzana como</label>
+                    <select id="draw-as" class="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs">
+                        <option value="poly" disabled>Manzanas (polígonos) · en espera...</option>
+                        <option value="point" selected>Puntos (centroide de cada manzana)</option>
+                    </select>
                 </div>
 
                 <div class="space-y-1.5">
@@ -293,6 +298,9 @@
                     </button>
                     <button id="btn-csv" class="w-full py-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-xl flex items-center justify-center gap-2 disabled:opacity-50" disabled>
                         <i class="fa-solid fa-file-csv text-emerald-600"></i><span>Descargar resultados (CSV)</span>
+                    </button>
+                    <button id="btn-geojson" title="Polígonos de manzanas con los resultados como atributos; se abre en ArcGIS Pro, ArcGIS Online o QGIS" class="w-full py-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-xl flex items-center justify-center gap-2 disabled:opacity-50" disabled>
+                        <i class="fa-solid fa-draw-polygon text-sky-600"></i><span>Descargar manzanas con resultados (GeoJSON)</span>
                     </button>
                 </div>
 
@@ -495,6 +503,9 @@ async function fetchAll(layerUrl, params, orderBy, onProgress) {
 // =====================================================================
 const D = {
     n: 0, ids: [], ubigeo: [], X: null, Y: null, cosLat: null, raw: null, jcx: null, jcy: null,
+    oid: null,               // OBJECTID de cada manzana en el servidor (clave para unir punto ↔ polígono)
+    poly: null,              // anillos (rings) del polígono de cada manzana, en Web Mercator; se descargan en segundo plano
+    polyCount: 0,
     roads: [], districtNames: { ...LIMA_NORTE },
     dAll: null,              // distancia (m) de cada manzana a cualquier vía del sistema propuesto
     soil: null,              // registros de valor de suelo: {x, y, cos, jcx, jcy, price, dAll, jb}
@@ -1536,18 +1547,26 @@ window.addEventListener("DOMContentLoaded", () => {
                 + cols.map((c, i) => `<div class="flex items-center gap-2">${sq(c)} ${i === 0 ? `hasta ${fmt(qs[0])}` : i === 4 ? `más de ${fmt(qs[3])}` : `${fmt(qs[i - 1])} a ${fmt(qs[i])}`}</div>`).join("")
                 + `<p class="text-slate-400">Solo ${T.n} zonas ATU con datos en Lima Norte. Unidades del modelo ATU.</p>`;
         }
+        // ¿Se dibuja por polígono de manzana o por punto (centroide)?
+        const asPoly = () => !!(D.poly && $("draw-as").value === "poly");
+        // Símbolo según la geometría: relleno de la manzana o círculo en su centroide
+        const symFor = (color, size) => (resultLayer && resultLayer.geometryType === "polygon")
+            ? new SimpleFillSymbol({ color, outline: color[3] === 0 ? null : { color: [255, 255, 255, 0.35], width: 0.25 } })
+            : new SimpleMarkerSymbol({ size, color, outline: null });
         async function buildResultLayer() {
-            const graphics = [];
+            const graphics = [], poly = asPoly();
             for (let j = 0; j < D.n; j++) {
                 if (!R.used[j]) continue;
+                if (poly && !D.poly[j]) continue;
                 graphics.push(new Graphic({
-                    geometry: { type: "point", x: D.X[j], y: D.Y[j], spatialReference: { wkid: 102100 } },
+                    geometry: poly ? { type: "polygon", rings: D.poly[j], spatialReference: { wkid: 102100 } }
+                                   : { type: "point", x: D.X[j], y: D.Y[j], spatialReference: { wkid: 102100 } },
                     attributes: { OID: graphics.length + 1, IDX: j, BASE: R.E[j], PROY: R.E[j] + R.newS1[j], NUEVO: R.newS1[j], DIF: R.dif[j],
                         VALOR: R.priceS1 ? R.priceS1[j] : 0, DVALOR: R.dval ? R.dval[j] * 100 : 0 }
                 }));
             }
             const layer = new FeatureLayer({
-                source: graphics, title: "Resultado del modelo", objectIdField: "OID", geometryType: "point", spatialReference: { wkid: 102100 }, popupEnabled: false,
+                source: graphics, title: "Resultado del modelo", objectIdField: "OID", geometryType: poly ? "polygon" : "point", spatialReference: { wkid: 102100 }, popupEnabled: false,
                 fields: [{ name: "OID", type: "oid" }, { name: "IDX", type: "integer" }, { name: "BASE", type: "double" }, { name: "PROY", type: "double" },
                     { name: "NUEVO", type: "double" }, { name: "DIF", type: "double" }, { name: "VALOR", type: "double" }, { name: "DVALOR", type: "double" }]
             });
@@ -1561,11 +1580,11 @@ window.addEventListener("DOMContentLoaded", () => {
         }
 
         const quantileAbs = (vals, q) => { const a = vals.filter(v => v !== 0).map(Math.abs).sort((x, y) => x - y); return a.length ? a[Math.min(a.length - 1, Math.floor(q * a.length))] : 0; };
-        const dot = c => `<span class="inline-block w-3 h-3 rounded-full" style="background:${c}"></span>`;
+        const dot = c => `<span class="inline-block w-3 h-3 ${resultLayer && resultLayer.geometryType === "polygon" ? "rounded-sm" : "rounded-full"}" style="background:${c}"></span>`;
 
         function divergingRenderer(field, q, unit, decimals) {
             const hi = q, lo = q * 0.15, tiny = q * 0.02;
-            const sym = (c, s) => new SimpleMarkerSymbol({ size: s, color: c, outline: null });
+            const sym = symFor;
             resultLayer.renderer = new ClassBreaksRenderer({ field, classBreakInfos: [
                 { minValue: -1e12, maxValue: -lo, symbol: sym([37, 99, 235, 0.85], 5) },
                 { minValue: -lo, maxValue: -tiny, symbol: sym([147, 197, 253, 0.8], 4) },
@@ -1605,7 +1624,7 @@ window.addEventListener("DOMContentLoaded", () => {
             const usedVals = f => { const v = []; for (let j = 0; j < D.n; j++) if (R.used[j]) v.push(f(j)); return v; };
 
             if ((mode === "VALOR" || mode === "DVALOR") && !R.hed) {
-                resultLayer.renderer = new SimpleRenderer({ symbol: new SimpleMarkerSymbol({ size: 0, color: [0, 0, 0, 0], outline: null }) });
+                resultLayer.renderer = new SimpleRenderer({ symbol: symFor([0, 0, 0, 0], 0) });
                 $("legend-body").innerHTML = "<p>El modelo de valor de suelo no está disponible (no se pudieron cargar suficientes registros de VALOR_DE_SUELO).</p>";
                 return;
             }
@@ -1613,7 +1632,7 @@ window.addEventListener("DOMContentLoaded", () => {
                 const isVal = mode === "DVALOR";
                 const q = quantileAbs(usedVals(j => isVal ? R.dval[j] * 100 : R.dif[j]), 0.95);
                 if (q === 0) {
-                    resultLayer.renderer = new SimpleRenderer({ symbol: new SimpleMarkerSymbol({ size: 0, color: [0, 0, 0, 0], outline: null }) });
+                    resultLayer.renderer = new SimpleRenderer({ symbol: symFor([0, 0, 0, 0], 0) });
                     $("legend-body").innerHTML = `<p>Sin diferencias frente a la referencia (${esc(R.refLabel)}). Activa un escenario vial con β &gt; 0, agrega un proyecto o cambia la referencia.</p>`;
                     return;
                 }
@@ -1629,9 +1648,32 @@ window.addEventListener("DOMContentLoaded", () => {
                 const qs = [0.2, 0.4, 0.6, 0.8].map(q => v[Math.floor(q * v.length)]);
                 const cols = [[254, 243, 199], [253, 224, 71], [245, 158, 11], [217, 119, 6], [146, 64, 14]];
                 const edges = [0, ...qs, 1e12];
-                resultLayer.renderer = new ClassBreaksRenderer({ field: "VALOR", classBreakInfos: cols.map((c, i) => ({ minValue: edges[i], maxValue: edges[i + 1], symbol: new SimpleMarkerSymbol({ size: 4, color: [...c, 0.9], outline: null }) })) });
+                resultLayer.renderer = new ClassBreaksRenderer({ field: "VALOR", classBreakInfos: cols.map((c, i) => ({ minValue: edges[i], maxValue: edges[i + 1], symbol: symFor([...c, 0.9], 4) })) });
                 $("legend-body").innerHTML = cols.map((c, i) => `<div class="flex items-center gap-2">${dot(`rgb(${c.join(",")})`)} ${i === 0 ? "Menos de" : i === 4 ? "Más de" : ""} S/ ${fmt(i === 4 ? edges[4] : edges[i + 1])}${i > 0 && i < 4 ? ` (desde S/ ${fmt(edges[i])})` : ""} por m²</div>`).join("")
                     + `<p class="text-slate-400">Estimado con el modelo hedónico para ${R.P.year} (escenario con proyectos). Cada color agrupa 20% de las manzanas.</p>`;
+                return;
+            }
+            const totals = { BASE: R.Etot, PROY: R.Etot + R.dE + R.Dtot, NUEVO: R.dE + R.Dtot };
+            if (resultLayer.geometryType === "polygon") {
+                // Coropleta por manzana: 5 clases con el mismo número de manzanas (quintiles de las que tienen valor > 0)
+                const v = usedVals(j => mode === "BASE" ? R.E[j] : mode === "PROY" ? R.E[j] + R.newS1[j] : R.newS1[j]).filter(x => x > 0).sort((a, b) => a - b);
+                if (!v.length) {
+                    resultLayer.renderer = new SimpleRenderer({ symbol: symFor([0, 0, 0, 0], 0) });
+                    $("legend-body").innerHTML = "<p>Ninguna manzana tiene valor mayor que cero en esta vista.</p>";
+                    return;
+                }
+                const qs = [0.2, 0.4, 0.6, 0.8].map(q => v[Math.floor(q * (v.length - 1))]);
+                const cols = [[254, 229, 217], [252, 174, 145], [251, 106, 74], [222, 45, 38], [165, 15, 21]];
+                const edges = [1e-9, ...qs, 1e12];
+                const dec = qs[0] >= 10 ? 0 : qs[0] >= 1 ? 1 : 2;   // más decimales cuando los valores son pequeños
+                resultLayer.renderer = new ClassBreaksRenderer({ field: mode,
+                    defaultSymbol: symFor([0, 0, 0, 0], 0),
+                    classBreakInfos: [{ minValue: -1e12, maxValue: 1e-9, symbol: symFor([226, 232, 240, 0.5], 0) },
+                        ...cols.map((c, i) => ({ minValue: edges[i], maxValue: edges[i + 1], symbol: symFor([...c, 0.9], 0) }))] });
+                $("legend-body").innerHTML = `<p>${FIELD_LABEL[mode]} por manzana (total: ${fmt(totals[mode])}).</p>`
+                    + cols.map((c, i) => `<div class="flex items-center gap-2">${dot(`rgb(${c.join(",")})`)} ${i === 0 ? `hasta ${fmt(qs[0], dec)}` : i === 4 ? `más de ${fmt(qs[3], dec)}` : `${fmt(qs[i - 1], dec)} a ${fmt(qs[i], dec)}`}</div>`).join("")
+                    + `<div class="flex items-center gap-2">${dot("rgba(226,232,240,.9)")} 0 ${mode === "NUEVO" ? "(sin empleos nuevos)" : "(sin empleo)"}</div>`
+                    + `<p class="text-slate-400">Cada color agrupa 20% de las manzanas con empleo. Haz clic en una manzana para ver su detalle.</p>`;
                 return;
             }
             try {
@@ -1642,7 +1684,6 @@ window.addEventListener("DOMContentLoaded", () => {
                 console.error("No se pudo crear el mapa de calor:", err);
                 resultLayer.renderer = new SimpleRenderer({ symbol: new SimpleMarkerSymbol({ size: 3, color: [225, 29, 72, 0.6], outline: null }) });
             }
-            const totals = { BASE: R.Etot, PROY: R.Etot + R.dE + R.Dtot, NUEVO: R.dE + R.Dtot };
             $("legend-body").innerHTML = `
                 <div class="h-2.5 rounded" style="background:linear-gradient(90deg,rgba(254,229,217,.6),#fc9272,#de2d26,#67000d)"></div>
                 <div class="flex justify-between text-slate-400"><span>menor concentración</span><span>mayor</span></div>
@@ -1805,6 +1846,7 @@ window.addEventListener("DOMContentLoaded", () => {
                 updateIndicators();
                 await buildResultLayer();
                 $("btn-csv").disabled = false;
+                $("btn-geojson").disabled = !D.poly;
                 status("Listo", "ok");
             } catch (err) {
                 console.error(err);
@@ -1823,30 +1865,61 @@ window.addEventListener("DOMContentLoaded", () => {
         ["p-year", "p-growth", "p-beta", "p-alpha", "p-gamma", "p-baseyear", "p-thr"].forEach(id => $(id).addEventListener("change", simulate));
 
         // ---------- CSV ----------
+        // Un registro por manzana, compartido por el CSV y el GeoJSON (mismos campos en ambos).
+        function blockRecord(j) {
+            const u = R.used[j];
+            const num = (v, d) => (v == null || !Number.isFinite(v)) ? null : Number(v.toFixed(d));
+            return {
+                IDMANZANA: D.ids[j] ?? null, UBIGEO: D.ubigeo[j] ?? null, DISTRITO: D.districtNames[D.ubigeo[j]] ?? null,
+                EMP_TOTAL_ORIGINAL: Number.isNaN(D.raw[j]) ? null : D.raw[j], EXCLUIDA: R.excluded[j] ? 1 : 0,
+                EMP_BASE: u ? R.E[j] : null, EMPLEOS_1KM_BASE: u ? num(R.Jb[j], 0) : null, DIST_VIA_M: u ? num(R.dist[j], 0) : null, VIA_CERCANA: u ? roadLabel(j) : null,
+                EMP_DIRECTOS_PROYECTOS: u ? num(R.Dd[j], 2) : null, NUEVOS_REFERENCIA: u ? num(R.ref[j], 4) : null, NUEVOS_ESCENARIO: u ? num(R.newS1[j], 4) : null,
+                PROYECTADO_ESCENARIO: u ? num(R.E[j] + R.newS1[j], 4) : null, DIFERENCIA: u ? num(R.dif[j], 4) : null,
+                VALOR_SUELO_HOY: u && R.priceBase ? num(R.priceBase[j], 0) : null, VALOR_SUELO_REF: u && R.priceRef ? num(R.priceRef[j], 0) : null,
+                VALOR_SUELO_ESCENARIO: u && R.priceS1 ? num(R.priceS1[j], 0) : null, CAMBIO_VALOR_VS_REF_PCT: u && R.dval ? num(R.dval[j] * 100, 3) : null,
+                REFERENCIA: R.refLabel, POBLACION_CENSO: D.census && D.census.matched[j] ? D.census.pop[j] : null,
+                ESTRATO_COD: D.census && D.census.matched[j] ? D.census.est[j] : null,
+                ZONA_ATU: D.blockZone && D.blockZone[j] >= 0 ? D.zones[D.blockZone[j]].cod : null,
+                ANIO_HORIZONTE: R.P.year, ESCENARIO: R.P.scenarioName
+            };
+        }
+        function downloadBlob(text, type, name) {
+            const a = document.createElement("a");
+            a.href = URL.createObjectURL(new Blob([text], { type }));
+            a.download = name;
+            a.click();
+            setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+        }
+        $("btn-geojson").addEventListener("click", () => {
+            if (!R || !D.poly) return;
+            // Web Mercator (metros) → WGS84 (grados), que es lo que exige el estándar GeoJSON
+            const toLL = ([x, y]) => [+(x / 6378137 * 180 / Math.PI).toFixed(7), +((2 * Math.atan(Math.exp(y / 6378137)) - Math.PI / 2) * 180 / Math.PI).toFixed(7)];
+            const parts = [];
+            for (let j = 0; j < D.n; j++) {
+                if (!D.poly[j]) continue;
+                // los anillos de ArcGIS se exportan como un MultiPolygon de anillos exteriores; los huecos (antihorarios en ArcGIS) van con su exterior
+                const polys = [];
+                for (const ring of D.poly[j]) {
+                    let a = 0; for (let k = 0; k < ring.length - 1; k++) a += ring[k][0] * ring[k + 1][1] - ring[k + 1][0] * ring[k][1];
+                    const ll = ring.map(toLL);
+                    if (a <= 0 || !polys.length) polys.push([ll.reverse()]);   // exterior (horario en ArcGIS) → antihorario en GeoJSON
+                    else polys[polys.length - 1].push(ll.reverse());            // hueco → horario en GeoJSON
+                }
+                parts.push(JSON.stringify({ type: "Feature", geometry: { type: "MultiPolygon", coordinates: polys }, properties: blockRecord(j) }));
+            }
+            downloadBlob(`{"type":"FeatureCollection","features":[\n${parts.join(",\n")}\n]}`, "application/geo+json",
+                `luti_lima_norte_manzanas_${R.P.scenarioKey}_${R.P.year}.geojson`);
+        });
         $("btn-csv").addEventListener("click", () => {
             if (!R) return;
             const q = s => `"${String(s ?? "").replace(/"/g, '""')}"`;
-            const num = (v, d) => (v == null || !Number.isFinite(v)) ? "" : v.toFixed(d);
-            const rows = [["IDMANZANA", "UBIGEO", "DISTRITO", "EMP_TOTAL_ORIGINAL", "EXCLUIDA", "EMP_BASE", "EMPLEOS_1KM_BASE", "DIST_VIA_M", "VIA_CERCANA",
-                "EMP_DIRECTOS_PROYECTOS", "NUEVOS_REFERENCIA", "NUEVOS_ESCENARIO", "PROYECTADO_ESCENARIO", "DIFERENCIA",
-                "VALOR_SUELO_HOY", "VALOR_SUELO_REF", "VALOR_SUELO_ESCENARIO", "CAMBIO_VALOR_VS_REF_PCT", "REFERENCIA", "POBLACION_CENSO", "ESTRATO_COD", "ZONA_ATU"].join(",")];
+            const keys = Object.keys(blockRecord(0));
+            const rows = [keys.join(",")];
             for (let j = 0; j < D.n; j++) {
-                const u = R.used[j];
-                rows.push([q(D.ids[j]), q(D.ubigeo[j]), q(D.districtNames[D.ubigeo[j]]),
-                    Number.isNaN(D.raw[j]) ? "" : D.raw[j], R.excluded[j] ? 1 : 0,
-                    u ? R.E[j] : "", u ? num(R.Jb[j], 0) : "", u ? num(R.dist[j], 0) : "", q(u ? roadLabel(j) : ""),
-                    u ? num(R.Dd[j], 2) : "", u ? num(R.ref[j], 4) : "", u ? num(R.newS1[j], 4) : "", u ? num(R.E[j] + R.newS1[j], 4) : "", u ? num(R.dif[j], 4) : "",
-                    u && R.priceBase ? num(R.priceBase[j], 0) : "", u && R.priceRef ? num(R.priceRef[j], 0) : "", u && R.priceS1 ? num(R.priceS1[j], 0) : "",
-                    u && R.dval ? num(R.dval[j] * 100, 3) : "", q(R.refLabel),
-                    D.census && D.census.matched[j] ? D.census.pop[j] : "", D.census && D.census.matched[j] ? D.census.est[j] : "",
-                    q(D.blockZone && D.blockZone[j] >= 0 ? D.zones[D.blockZone[j]].cod : "")].join(","));
+                const rec = blockRecord(j);
+                rows.push(keys.map(k => rec[k] == null ? "" : typeof rec[k] === "string" ? q(rec[k]) : rec[k]).join(","));
             }
-            const blob = new Blob(["﻿" + rows.join("\n")], { type: "text/csv;charset=utf-8" });
-            const a = document.createElement("a");
-            a.href = URL.createObjectURL(blob);
-            a.download = `luti_lima_norte_${R.P.scenarioKey}_${R.P.year}.csv`;
-            a.click();
-            setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+            downloadBlob("﻿" + rows.join("\n"), "text/csv;charset=utf-8", `luti_lima_norte_${R.P.scenarioKey}_${R.P.year}.csv`);
         });
 
         function roadLabel(j) {
@@ -1857,13 +1930,15 @@ window.addEventListener("DOMContentLoaded", () => {
         }
 
         // ---------- Clic en una manzana ----------
-        const indexById = new globalThis.Map();
+        const indexById = new globalThis.Map(), oidIndex = new globalThis.Map();
         view.on("click", async evt => {
             if (!R || drawing) return;
-            const hit = await view.hitTest(evt, { include: [manzanasLayer] });
-            const g = hit.results.find(r => r.graphic && r.graphic.layer === manzanasLayer)?.graphic;
-            if (!g) return;
-            const j = indexById.get(g.attributes.IDMANZANA);
+            const include = [manzanasLayer]; if (resultLayer && resultLayer.visible) include.unshift(resultLayer);
+            const hit = await view.hitTest(evt, { include });
+            const r0 = hit.results.find(r => r.graphic && (r.graphic.layer === resultLayer || r.graphic.layer === manzanasLayer));
+            if (!r0) return;
+            const g = r0.graphic;
+            const j = g.layer === resultLayer ? g.attributes.IDX : indexById.get(g.attributes.IDMANZANA);
             if (j == null) return;
             const raw = Number.isNaN(D.raw[j]) ? "sin dato" : fmt(D.raw[j]);
             let body;
@@ -1890,6 +1965,37 @@ window.addEventListener("DOMContentLoaded", () => {
             if (typeof view.openPopup === "function") view.openPopup(opts); else view.popup.open(opts);
         });
 
+        // ---------- Polígonos de manzanas (unión punto → polígono por OBJECTID) ----------
+        // Cada punto del modelo es el centroide de una manzana de MANZANAS_CENEC; aquí se descarga el polígono
+        // de esa misma manzana y se le asignan los resultados. No es una unión espacial aproximada: es la misma fila.
+        async function loadBlockPolygons() {
+            const opt = $("draw-as").querySelector('option[value="poly"]');
+            try {
+                opt.textContent = "Manzanas (polígonos) · descargando...";
+                const res = await fetchAll(URL_MANZANAS, { where: WHERE_LN, outFields: "OBJECTID", returnGeometry: true, outSR: 102100, maxAllowableOffset: 0.5, geometryPrecision: 1 },
+                    "OBJECTID", (got, total) => { opt.textContent = `Manzanas (polígonos) · ${Math.round(100 * got / total)}%`; });
+                const poly = new Array(D.n).fill(null);
+                let c = 0;
+                for (const f of res.features) {
+                    const j = oidIndex.get(f.attributes.OBJECTID);
+                    if (j != null && f.geometry && f.geometry.rings && f.geometry.rings.length) { poly[j] = f.geometry.rings; c++; }
+                }
+                if (!c) throw new Error("el servidor no devolvió geometrías");
+                D.poly = poly; D.polyCount = c;
+                opt.textContent = `Manzanas (polígonos) · ${fmt(c)}`;
+                opt.disabled = false;
+                if ($("draw-as").value === "point" && !drawAsTouched) $("draw-as").value = "poly";
+                $("btn-geojson").disabled = !R;
+                if (R && $("draw-as").value === "poly") await buildResultLayer();
+            } catch (e) {
+                console.warn("Polígonos de manzanas no disponibles", e);
+                opt.textContent = "Manzanas (polígonos) · no disponible";
+                opt.disabled = true;
+            }
+        }
+        let drawAsTouched = false;
+        $("draw-as").addEventListener("change", () => { drawAsTouched = true; if (R) buildResultLayer(); });
+
         // ---------- Carga inicial ----------
         async function loadData() {
             try {
@@ -1910,9 +2016,10 @@ window.addEventListener("DOMContentLoaded", () => {
                 const n = feats.length;
                 D.n = n;
                 D.X = new Float64Array(n); D.Y = new Float64Array(n); D.cosLat = new Float64Array(n); D.raw = new Float64Array(n);
-                D.jcx = new Int32Array(n); D.jcy = new Int32Array(n);
+                D.jcx = new Int32Array(n); D.jcy = new Int32Array(n); D.oid = new Float64Array(n);
                 feats.forEach((f, j) => {
                     const a = f.attributes;
+                    D.oid[j] = a.OBJECTID; oidIndex.set(a.OBJECTID, j);
                     D.ids.push(a.IDMANZANA); D.ubigeo.push(a.UBIGEO);
                     D.X[j] = f.centroid.x; D.Y[j] = f.centroid.y;
                     D.cosLat[j] = Math.cos(2 * Math.atan(Math.exp(D.Y[j] / 6378137)) - Math.PI / 2);
@@ -2071,6 +2178,7 @@ window.addEventListener("DOMContentLoaded", () => {
                 applyScenarioPreset("completo");
                 await simulate();
                 limitesLayer.queryExtent().then(r => { if (r.extent) view.goTo(r.extent.expand(1.05)); }).catch(() => {});
+                loadBlockPolygons();   // en segundo plano: la app ya es usable con puntos mientras llegan los polígonos
             } catch (err) {
                 console.error(err);
                 loading(`No se pudieron cargar los datos: ${err.message}. Revisa tu conexión a internet y recarga la página.`, 0);
