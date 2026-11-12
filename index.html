@@ -3,8 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Prototipo LUTI · Lima Norte</title>
+    <title>Prototipo LUTI · Lima Metropolitana y Callao</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // Paleta institucional: "rose" y "sky" se reasignan al color de marca (petróleo); el resto queda neutro.
+        window.tailwind = window.tailwind || {};
+        tailwind.config = { theme: { extend: {
+            colors: {
+                rose: { 50: "#EEF6F7", 100: "#D5E9EC", 200: "#ABD2D9", 300: "#78B3BE", 400: "#4A909E", 500: "#2C7383", 600: "#1B5D6C", 700: "#134C59", 800: "#0F3D48", 900: "#0B2E37" },
+                sky:  { 50: "#EEF6F7", 100: "#D5E9EC", 200: "#ABD2D9", 300: "#78B3BE", 400: "#4A909E", 500: "#2C7383", 600: "#1B5D6C", 700: "#134C59", 800: "#0F3D48", 900: "#0B2E37" }
+            },
+            fontFamily: { sans: ["Inter", "system-ui", "-apple-system", "Segoe UI", "sans-serif"] }
+        } } };
+    </script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <link rel="stylesheet" href="https://js.arcgis.com/4.28/esri/themes/light/main.css">
@@ -19,44 +32,92 @@
         .flow-arrow { text-align: center; color: #94a3b8; font-size: 14px; line-height: 1; margin: 2px 0; }
         .popup-table td { padding: 2px 6px; font-size: 12px; vertical-align: top; }
         .popup-table td:first-child { color: #64748b; white-space: nowrap; }
-        .proj-input { width: 100%; border: 1px solid #ddd6fe; border-radius: 6px; padding: 2px 6px; background: #fff; }
+        .proj-input { width: 100%; border: 1px solid #e2e8f0; border-radius: 6px; padding: 2px 6px; background: #fff; }
+
+        /* ===================== Tema profesional ===================== */
+        :root { --brand: #134C59; --brand-2: #1B5D6C; --accent: #C8553D; --ink: #0f172a; --muted: #64748b; --line: #e5e9ef; }
+        body { font-feature-settings: "cv11", "ss01"; -webkit-font-smoothing: antialiased; color: #1e293b; }
+        .tabular, [id^="k-"], [id^="top-"], [id^="s-"] { font-variant-numeric: tabular-nums; }
+        /* Paneles flotantes */
+        #control-panel, #dashboard-panel { border-color: rgba(15,23,42,.08) !important; border-radius: 16px !important;
+            box-shadow: 0 1px 2px rgba(15,23,42,.06), 0 12px 32px -12px rgba(15,23,42,.28) !important; background: rgba(255,255,255,.97) !important; }
+        #control-panel > div:first-child, #dashboard-panel > div:first-child { background: #fff !important; border-top-left-radius: 16px; border-top-right-radius: 16px; padding: 12px 14px; }
+        #control-panel h2, #dashboard-panel h2 { text-transform: none !important; letter-spacing: 0 !important; font-size: 13px !important; font-weight: 600 !important; color: var(--ink) !important; }
+        #control-panel h2 i, #dashboard-panel h2 i { color: var(--brand) !important; }
+        /* Secciones: sin fondos de colores; tarjetas blancas con borde fino */
+        [class*="bg-rose-50"], [class*="bg-violet-50"], [class*="bg-sky-50"], [class*="bg-emerald-50"], [class*="bg-amber-50"] { background-color: #fff !important; }
+        #control-body [class*="bg-slate-50"], #dashboard-body [class*="bg-slate-50"] { background-color: #fbfcfd !important; }
+        [class*="border-rose-1"], [class*="border-rose-2"], [class*="border-violet-1"], [class*="border-violet-2"], [class*="border-sky-1"], [class*="border-sky-2"],
+        [class*="border-emerald-1"], [class*="border-emerald-2"], [class*="border-amber-1"], [class*="border-amber-2"], #control-body [class*="border-slate-2"], #dashboard-body [class*="border-slate-2"] { border-color: var(--line) !important; }
+        #control-body > div, #dashboard-body > div { border-radius: 12px !important; }
+        /* Rótulos de sección */
+        #control-body label.uppercase, #dashboard-body span.uppercase, #control-body label.font-bold.uppercase { color: #475569 !important; font-weight: 600 !important; font-size: 10.5px !important; letter-spacing: .07em !important; }
+        #dashboard-body span.uppercase i, #control-body label.uppercase i { color: var(--brand); }
+        /* Controles de formulario */
+        #control-panel select, #control-panel input[type=number], header select { border-color: #dbe1e8 !important; border-radius: 9px !important; background-color: #fff; transition: border-color .15s, box-shadow .15s; }
+        #control-panel select:focus, #control-panel input:focus, header select:focus { outline: none; border-color: var(--brand-2) !important; box-shadow: 0 0 0 3px rgba(27,93,108,.15); }
+        input[type=range] { accent-color: var(--brand-2); }
+        #btn-run { box-shadow: 0 6px 16px -8px rgba(19,76,89,.6) !important; }
+        #btn-add-proj { background: var(--brand) !important; }
+        #btn-add-proj:hover { background: #0F3D48 !important; }
+        /* Números destacados */
+        #dashboard-body .text-lg, #dashboard-body .text-sm.font-bold { letter-spacing: -.01em; }
+        #k-new { color: var(--accent) !important; }
+        /* Cabecera */
+        .kpi-label { font-size: 10px; color: #94a3b8; text-transform: uppercase; letter-spacing: .06em; font-weight: 600; }
+        .kpi-value { font-size: 13px; font-weight: 600; color: var(--ink); }
+        .seg { display: inline-flex; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 10px; padding: 2px; }
+        .seg button { padding: 5px 10px; border-radius: 8px; font-size: 12px; font-weight: 500; color: #475569; display: inline-flex; align-items: center; gap: 6px; }
+        .seg button:hover { color: var(--ink); }
+        .seg button.ring-2 { background: #fff; color: var(--brand); box-shadow: 0 1px 2px rgba(15,23,42,.12) !important; --tw-ring-shadow: 0 0 #0000 !important; }
+        .ghost-btn { padding: 6px 10px; border-radius: 9px; font-size: 12px; font-weight: 500; color: #334155; display: inline-flex; align-items: center; gap: 6px; border: 1px solid transparent; }
+        .ghost-btn:hover { background: #f1f5f9; border-color: #e2e8f0; }
+        /* Ventanas de carga y selección de zona */
+        #loading > div, #zone-chooser > div { border-radius: 18px !important; box-shadow: 0 24px 60px -20px rgba(15,23,42,.35) !important; }
+        #zone-buttons button { transition: border-color .15s, background .15s, transform .15s; }
+        #zone-buttons button:hover { transform: translateY(-1px); }
+        /* Ventanas emergentes del mapa */
+        .esri-popup__header-title { font-weight: 600 !important; color: var(--ink) !important; }
+        .esri-ui-corner .esri-widget--button { border-radius: 8px; }
     </style>
 </head>
-<body class="bg-slate-50 text-slate-800 flex flex-col h-screen overflow-hidden">
+<body class="bg-slate-100 text-slate-800 flex flex-col h-screen overflow-hidden font-sans">
 
     <!-- ============ BARRA SUPERIOR ============ -->
-    <header class="h-14 bg-white border-b border-slate-200 px-4 flex items-center justify-between z-20 shrink-0 shadow-sm gap-3">
-        <div class="flex items-center space-x-3 min-w-0">
-            <div class="bg-rose-600 text-white px-2 py-1.5 rounded-lg font-bold font-mono text-sm shadow-md shadow-rose-600/20">LUTI</div>
-            <div class="min-w-0">
-                <h1 class="font-bold text-base text-slate-900 flex items-center gap-2 truncate">
-                    Prototipo LUTI · Lima Norte
-                    <span class="text-[10px] font-semibold px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 hidden md:inline">Parámetros ilustrativos · sin calibrar</span>
+    <header class="h-14 bg-white border-b border-slate-200/80 px-4 flex items-center justify-between z-20 shrink-0 gap-4">
+        <div class="flex items-center gap-3 min-w-0">
+            <div class="w-9 h-9 rounded-xl bg-rose-700 text-white grid place-items-center shadow-sm shrink-0"><i class="fa-solid fa-city text-[15px]"></i></div>
+            <div class="min-w-0 leading-tight">
+                <h1 class="font-semibold text-[15px] text-slate-900 truncate flex items-center gap-2">
+                    <span>LUTI</span><span class="text-slate-300 font-normal">|</span><span id="zone-title" class="truncate">Lima</span>
                 </h1>
-                <p class="text-xs text-slate-500 hidden sm:block truncate">Empleos CENEC + Sistema vial propuesto + Valor de suelo · Logit de localización y modelo hedónico</p>
+                <p class="text-[11px] text-slate-500 truncate hidden sm:block">Simulador de uso de suelo y transporte</p>
             </div>
         </div>
 
-        <div class="hidden 2xl:flex items-center space-x-2 text-xs">
-            <div class="bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200"><span class="text-slate-500">Escenario: </span><span id="top-scenario" class="font-bold text-rose-600">—</span></div>
-            <div class="bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200"><span class="text-slate-500">Empleos base: </span><span id="top-base" class="font-bold text-slate-800">—</span></div>
-            <div class="bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200"><span class="text-slate-500">Proyectados: </span><span id="top-proj" class="font-bold text-rose-600">—</span></div>
-            <div class="bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200"><span class="text-slate-500">Horizonte: </span><span id="top-year" class="font-bold text-rose-600">—</span></div>
+        <div class="hidden min-[1680px]:flex items-center divide-x divide-slate-200 whitespace-nowrap">
+            <div class="px-4"><div class="kpi-label">Escenario</div><div id="top-scenario" class="kpi-value truncate max-w-[13rem]">—</div></div>
+            <div class="px-4"><div class="kpi-label">Empleos base</div><div id="top-base" class="kpi-value">—</div></div>
+            <div class="px-4"><div class="kpi-label">Proyectados</div><div id="top-proj" class="kpi-value" style="color:var(--accent)">—</div></div>
+            <div class="px-4"><div class="kpi-label">Horizonte</div><div id="top-year" class="kpi-value">—</div></div>
         </div>
 
-        <div class="flex items-center space-x-2 shrink-0">
-            <button id="btn-fullmap" title="Ocultar o mostrar ambos paneles" class="bg-white hover:bg-slate-50 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-medium border border-slate-300 flex items-center gap-1.5 shadow-sm">
-                <i class="fa-solid fa-expand"></i><span class="hidden sm:inline">Mapa completo</span>
-            </button>
-            <button id="btn-method" class="bg-white hover:bg-slate-50 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-medium border border-slate-300 flex items-center gap-1.5 shadow-sm">
-                <i class="fa-solid fa-diagram-project text-amber-600"></i><span class="hidden sm:inline">Metodología</span>
-            </button>
-            <button id="btn-toggle-panel" class="bg-white hover:bg-slate-50 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-medium border border-slate-300 flex items-center gap-1.5 shadow-sm">
-                <i class="fa-solid fa-sliders text-slate-600"></i><span class="hidden sm:inline">Controles</span>
-            </button>
-            <button id="btn-toggle-dashboard" class="bg-rose-600 hover:bg-rose-700 text-white px-3 py-1.5 rounded-lg text-xs font-medium shadow-md shadow-rose-600/20 flex items-center gap-1.5">
-                <i class="fa-solid fa-chart-line"></i><span class="hidden sm:inline">Indicadores</span>
-            </button>
+        <div class="flex items-center gap-2 shrink-0">
+            <label class="flex items-center gap-2 text-xs" title="Cambia el ámbito de estudio (vuelve a cargar los datos)">
+                <span class="kpi-label hidden lg:inline">Zona</span>
+                <span class="relative">
+                    <i class="fa-solid fa-location-dot absolute left-2.5 top-1/2 -translate-y-1/2 text-rose-600 text-[11px] pointer-events-none"></i>
+                    <select id="zone-select" class="appearance-none bg-white border border-slate-300 rounded-lg pl-7 pr-7 py-1.5 text-xs font-medium text-slate-800 max-w-[13rem] cursor-pointer"></select>
+                    <i class="fa-solid fa-chevron-down absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-[9px] pointer-events-none"></i>
+                </span>
+            </label>
+            <div class="h-6 w-px bg-slate-200 mx-1 hidden sm:block"></div>
+            <button id="btn-fullmap" title="Ocultar o mostrar ambos paneles" class="ghost-btn"><i class="fa-solid fa-expand"></i><span class="hidden xl:inline">Mapa completo</span></button>
+            <button id="btn-method" title="Metodología y fórmulas" class="ghost-btn"><i class="fa-solid fa-book-open"></i><span class="hidden xl:inline">Metodología</span></button>
+            <div class="seg ml-1">
+                <button id="btn-toggle-panel" title="Mostrar u ocultar el simulador"><i class="fa-solid fa-sliders"></i><span class="hidden sm:inline">Simulador</span></button>
+                <button id="btn-toggle-dashboard" title="Mostrar u ocultar los indicadores"><i class="fa-solid fa-chart-simple"></i><span class="hidden sm:inline">Indicadores</span></button>
+            </div>
         </div>
     </header>
 
@@ -77,6 +138,14 @@
                 <div class="w-full h-2 bg-slate-100 rounded-full overflow-hidden"><div id="loading-bar" class="h-full bg-rose-600 transition-all" style="width:0%"></div></div>
             </div>
         </div>
+        <!-- Selector de ámbito al abrir la app sin ?zona= -->
+        <div id="zone-chooser" class="absolute inset-0 z-40 bg-white/80 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+            <div class="bg-white border border-slate-200 rounded-2xl shadow-xl p-5 w-full max-w-lg space-y-3">
+                <h2 class="font-bold text-slate-900 flex items-center gap-2"><i class="fa-solid fa-map-location-dot text-rose-600"></i> ¿Qué zona quieres cargar?</h2>
+                <p class="text-xs text-slate-500">Las zonas siguen las Áreas Interdistritales del IMP (capa Distritos_Macrozonas). Cuanto más grande la zona, más tarda la carga en el navegador; puedes cambiarla después con el selector <b>Zona</b> de la barra superior.</p>
+                <div id="zone-buttons" class="grid grid-cols-1 sm:grid-cols-2 gap-2"></div>
+            </div>
+        </div>
 
         <!-- ============ MODAL METODOLOGÍA ============ -->
         <div id="modal-method" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
@@ -88,9 +157,9 @@
                 <div class="p-5 overflow-y-auto custom-scrollbar flex-1 text-xs text-slate-600 grid md:grid-cols-2 gap-5">
                     <div>
                         <h4 class="font-bold text-slate-900 mb-2">Diagrama de flujo del sistema</h4>
-                        <div class="flow-box bg-sky-50 border-sky-200"><b>1. Datos (ArcGIS, solo lectura)</b><br>Manzanas CENEC (capa 7) · Sistema vial propuesto (capa 206) · Límites INEI · Valor de suelo (puntos con S/ por m²)</div>
+                        <div class="flow-box bg-sky-50 border-sky-200"><b>1. Datos (ArcGIS, solo lectura)</b><br>Manzanas CENEC (capa 7) · Sistema vial propuesto PDU Lima Norte (capa 206) o Sistema Vial Metropolitano A87 fuera de Lima Norte · Límites INEI · Valor de suelo (puntos con S/ por m²)</div>
                         <div class="flow-arrow">▼</div>
-                        <div class="flow-box"><b>2. Filtro y limpieza</b><br>Solo Lima Norte (8 distritos por UBIGEO). Se excluyen manzanas con EMP_TOTAL mayor al umbral (valores atípicos).</div>
+                        <div class="flow-box"><b>2. Filtro y limpieza</b><br>Solo los distritos de la zona elegida (filtro por UBIGEO). Se excluyen manzanas con EMP_TOTAL mayor al umbral (valores atípicos).</div>
                         <div class="flow-arrow">▼</div>
                         <div class="flow-box"><b>3. Variables espaciales</b><br>Distancia de cada manzana a la vía más cercana · Empleos a ≤ 1 km de cada manzana.</div>
                         <div class="flow-arrow">▼</div>
@@ -116,7 +185,7 @@
                         <div>
                             <h4 class="font-bold text-slate-900 mb-1">B. Valor de suelo (regresión hedónica, Rosen 1974)</h4>
                             <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 font-mono text-[11px] text-slate-800">ln(S/ por m²) = b<sub>0</sub> + b<sub>1</sub>·d<sub>km</sub> + b<sub>2</sub>·ln(1 + J) + estrato + densidad + distrito + tipo de inmueble + ln(área)</div>
-                            <p class="mt-1">Se estima por mínimos cuadrados con los registros reales de la capa VALOR_DE_SUELO (se descarta el 1% más alto y el 1% más bajo). d: distancia a cualquier vía del sistema propuesto. Para el horizonte se recalculan d (si hay vías nuevas) y J (con los empleos proyectados).</p>
+                            <p class="mt-1">Se estima por mínimos cuadrados con los registros reales de la capa VALOR_DE_SUELO (se descarta el 1% más alto y el 1% más bajo). d: distancia a cualquier vía del Sistema Vial Metropolitano. Para el horizonte se recalculan d (si hay vías nuevas) y J (con los empleos proyectados).</p>
                         </div>
                         <div>
                             <h4 class="font-bold text-slate-900 mb-1">C. Proyectos</h4>
@@ -130,19 +199,19 @@
                         <div>
                             <h4 class="font-bold text-slate-900 mb-1">D. Expansión urbana (regresión logística, validada en el tiempo)</h4>
                             <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 font-mono text-[11px] text-slate-800">P(urbanizarse) = 1 / (1 + e<sup>−(c<sub>0</sub> + c<sub>1</sub>·dist. a lo urbano + c<sub>2</sub>·dist. a vía + c<sub>3</sub>·% urbano cercano + c<sub>4</sub>·dist. al centro)</sup>)</div>
-                            <p class="mt-1">Celdas de 1 ha en Lima Norte. Se <b>entrena</b> con la mancha urbana 1985→2003 (capas Huella del Plan Met 2040), se <b>valida</b> prediciendo 2003→2013 sin ver ese periodo y se compara contra una regla simple (urbanizar lo más cercano a la ciudad). Para proyectar, se re-estima con 2003→2013 y se urbaniza al ritmo observado (ha/año) en las celdas más probables.</p>
+                            <p class="mt-1">Celdas de 1 ha en la zona elegida. Se <b>entrena</b> con la mancha urbana 1985→2003 (capas Huella del Plan Met 2040), se <b>valida</b> prediciendo 2003→2013 sin ver ese periodo y se compara contra una regla simple (urbanizar lo más cercano a la ciudad). Para proyectar, se re-estima con 2003→2013 y se urbaniza al ritmo observado (ha/año) en las celdas más probables.</p>
                         </div>
                         <div>
                             <h4 class="font-bold text-slate-900 mb-1">E. Viajes atraídos (regresión, validación "dejando una fuera")</h4>
                             <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 font-mono text-[11px] text-slate-800">Viajes atraídos<sub>z</sub> = a + b·Empleos<sub>z</sub> + c·ha comercio + d·ha enseñanza + e·ha servicios + f·ha industria</div>
-                            <p class="mt-1">Etapa de "atracción de viajes" del modelo de transporte de cuatro etapas (Ortúzar y Willumsen). Se calibra con las zonas de la capa 3_Movilidad (modelo ATU) en Lima Norte; las hectáreas por tipo de actividad vienen de la capa Actividades_economicas. La población no entra porque genera viajes, pero no los atrae. Cada zona se predice con un modelo que no la vio, y solo se proyecta si R² fuera de muestra ≥ 0.3. Ojo: los viajes de la ATU son resultados de otro modelo, no conteos directos.</p>
+                            <p class="mt-1">Etapa de "atracción de viajes" del modelo de transporte de cuatro etapas (Ortúzar y Willumsen). Se calibra con las zonas de la capa 3_Movilidad (modelo ATU) que caen en la zona elegida; en Lima Norte se agregan las hectáreas por tipo de actividad de la capa Actividades_economicas (esa capa solo cubre Lima Norte). La población no entra porque genera viajes, pero no los atrae. Cada zona se predice con un modelo que no la vio, y solo se proyecta si R² fuera de muestra ≥ 0.3. Ojo: los viajes de la ATU son resultados de otro modelo, no conteos directos.</p>
                         </div>
                         <div>
                             <h4 class="font-bold text-slate-900 mb-1">Supuestos y limitaciones</h4>
                             <ul class="list-disc pl-4 space-y-0.5">
                                 <li>g, α, β y γ son <b>ilustrativos</b>: no están calibrados con datos históricos de Lima.</li>
                                 <li>Distancias en línea recta desde el centroide de la manzana. J se calcula en una grilla de 250 m.</li>
-                                <li>La capa vial es el sistema <b>propuesto</b> y probablemente incluye vías existentes.</li>
+                                <li>Capa vial: en <b>Lima Norte</b> se usa la capa del encargo, el <b>sistema vial propuesto del PDU Lima Norte</b> (p_1501_1, capa 206), que solo cubre Lima Norte. En las demás zonas se usa el <b>Sistema Vial Metropolitano (Adenda 87)</b>, que cubre toda Lima. Ambas mezclan vías existentes y planificadas, y para el Callao pueden no incluir toda su red vial propia.</li>
                                 <li>El modelo hedónico usa pocos registros y dos variables: es una aproximación. Ver su R² en Indicadores.</li>
                                 <li>Expansión urbana: la red vial usada es la <b>propuesta actual</b>, aplicada también a 1985 y 2003 (anacronismo); la capa "1981" dice internamente 1985; no se usa la pendiente del terreno.</li>
                                 <li>Las predicciones validadas (expansión, valor de suelo, viajes) informan su error. Los escenarios de empleo siguen siendo "qué pasaría si".</li>
@@ -175,7 +244,7 @@
                     <label class="text-[11px] font-bold text-rose-700 uppercase tracking-wider block">Escenario vial</label>
                     <select id="scenario" class="w-full bg-white border border-rose-200 rounded-xl px-3 py-2 text-xs font-medium">
                         <option value="tendencial">1. Tendencial (sin efecto vial)</option>
-                        <option value="completo" selected>2. Sistema vial propuesto completo</option>
+                        <option value="completo" selected>2. Sistema vial metropolitano completo</option>
                         <option value="expresas">3. Solo expresas y semiexpresas</option>
                         <option value="arteriales">4. Solo arteriales y colectoras</option>
                         <option value="custom">5. Personalizado</option>
@@ -282,12 +351,12 @@
                         <p class="text-[10px] text-slate-400" id="v-beta-help"></p>
                     </div>
                     <div>
-                        <label class="text-[11px] text-slate-600 flex justify-between"><span>α · aglomeración en la manzana</span><span id="v-alpha" class="text-indigo-600 font-bold"></span></label>
-                        <input type="range" id="p-alpha" min="0" max="1.5" value="1" step="0.05" class="w-full accent-indigo-600">
+                        <label class="text-[11px] text-slate-600 flex justify-between"><span>α · aglomeración en la manzana</span><span id="v-alpha" class="text-rose-700 font-bold"></span></label>
+                        <input type="range" id="p-alpha" min="0" max="1.5" value="1" step="0.05" class="w-full accent-rose-600">
                     </div>
                     <div>
-                        <label class="text-[11px] text-slate-600 flex justify-between"><span>γ · atracción de empleos a ≤ 1 km</span><span id="v-gamma" class="text-indigo-600 font-bold"></span></label>
-                        <input type="range" id="p-gamma" min="0" max="1.5" value="0.5" step="0.05" class="w-full accent-indigo-600">
+                        <label class="text-[11px] text-slate-600 flex justify-between"><span>γ · atracción de empleos a ≤ 1 km</span><span id="v-gamma" class="text-rose-700 font-bold"></span></label>
+                        <input type="range" id="p-gamma" min="0" max="1.5" value="0.5" step="0.05" class="w-full accent-rose-600">
                     </div>
                     <div>
                         <label class="text-[11px] text-slate-600 block mb-1">Clases viales activas en el escenario</label>
@@ -406,26 +475,71 @@
 // =====================================================================
 const REST = "https://services5.arcgis.com/bHvzrGGxW8wP6Utm/arcgis/rest/services";
 const URL_MANZANAS = `${REST}/MANZANAS_CENEC/FeatureServer/7`;
-const URL_VIAS     = `${REST}/p_1501_1_sistema_vial_metropolitano_propuesto/FeatureServer/206`;
+// Capa vial: la del encargo (sistema vial propuesto, PDU Lima Norte) solo cubre Lima Norte.
+// Fuera de Lima Norte se usa el Sistema Vial Metropolitano (Adenda 87), que cubre toda Lima.
+const ROAD_SOURCES = {
+    pdu_norte: { url: `${REST}/p_1501_1_sistema_vial_metropolitano_propuesto/FeatureServer/206`, oid: "OBJECTID_1", name: "nombre", clase: "clasif", len: "long_km",
+                 label: "Sistema vial propuesto (PDU Lima Norte)",
+                 raws: ["EXPRESA NACIONAL - REGIONAL", "EXPRESA METROPOLITANA", "SEMI EXPRESA", "ARTERIALES", "COLECTORAS INTERDISTRITALES", "COLECTORA DISTRITAL"] },
+    svm_a87:   { url: `${REST}/Sistema_Vial_Metropolitano_A87/FeatureServer/0`, oid: "OBJECTID", name: "NOMBRE_1", clase: "CLASIF_1", len: "LONG_KM_1",
+                 label: "Sistema Vial Metropolitano (Adenda 87)",
+                 raws: ["EXPRESA NACIONAL - REGIONAL", "EXPRESA NACIONAL - REGIONAL - SVN", "EXPRESA METROPOLITANA", "SEMI EXPRESAS", "SEMI EXPRESAS - SVN",
+                        "ARTERIALES", "COLECTORAS INTERDISTRITALES", "COLECTORAS DISTRITALES", "COLECTORAS"] }
+};
+let ROAD = ROAD_SOURCES.pdu_norte;
 const URL_LIMITES  = `${REST}/LIMITES_INEI/FeatureServer/0`;
 const URL_SUELO    = `${REST}/VALOR_DE_SUELO/FeatureServer/0`;
 const URL_CENSO    = `${REST}/estadisticas_manzanas/FeatureServer/0`;          // tabla: población, hogares, estrato por manzana
 const URL_ZONAS    = `${REST}/3_Movilidad/FeatureServer/15`;                   // viajes generados/atraídos por zona (modelo ATU)
-const URL_ACT      = `${REST}/Actividades_economicas/FeatureServer/38`;        // actividades económicas de Lima Norte (polígonos con tipo y área)
+const URL_ACT      = `${REST}/Actividades_economicas/FeatureServer/38`;        // actividades económicas (la capa solo cubre Lima Norte)
 const HUELLAS = [                                                               // mancha urbana histórica (Plan Met 2040)
     { key: "h1985", year: 1985, url: `${REST}/Huella_AM_LimaCallao_1981/FeatureServer/8`, note: "capa 'Huella 1981', atributo ANO_EU = 1985" },
     { key: "h2003", year: 2003, url: `${REST}/Huella_AM_LimaCallao_2003/FeatureServer/9` },
     { key: "h2013", year: 2013, url: `${REST}/Huella_AM_LimaCallao_2013/FeatureServer/10` }
 ];
-const ZONAS_LN = ["ANCON", "CARABAYLLO", "COMAS", "INDEPENDENCIA", "LOS OLIVOS", "PUENTE PIEDRA", "SAN MARTIN DE PORRES", "SANTA ROSA"];
 const EXP_CELL_M = 100;                                                         // tamaño de celda del modelo de expansión urbana
 const LIMA_CENTER = { lon: -77.0300, lat: -12.0458 };                          // Plaza Mayor de Lima
 
-const LIMA_NORTE = {
-    "150102": "Ancón", "150106": "Carabayllo", "150110": "Comas", "150112": "Independencia",
-    "150117": "Los Olivos", "150125": "Puente Piedra", "150135": "San Martín de Porres", "150139": "Santa Rosa"
+// ---- Ámbitos de estudio ----
+// Agrupación de distritos según las Áreas Interdistritales (campo NOM_AIM) de la capa Distritos_Macrozonas del IMP.
+const DISTRITOS = {
+    "150101": ["Lima (Cercado)", "centro"], "150102": ["Ancón", "norte"], "150103": ["Ate", "este"], "150104": ["Barranco", "centro"],
+    "150105": ["Breña", "centro"], "150106": ["Carabayllo", "norte"], "150107": ["Chaclacayo", "este"], "150108": ["Chorrillos", "centro"],
+    "150109": ["Cieneguilla", "sur"], "150110": ["Comas", "norte"], "150111": ["El Agustino", "este"], "150112": ["Independencia", "norte"],
+    "150113": ["Jesús María", "centro"], "150114": ["La Molina", "este"], "150115": ["La Victoria", "centro"], "150116": ["Lince", "centro"],
+    "150117": ["Los Olivos", "norte"], "150118": ["Lurigancho", "este"], "150119": ["Lurín", "sur"], "150120": ["Magdalena del Mar", "centro"],
+    "150121": ["Pueblo Libre", "centro"], "150122": ["Miraflores", "centro"], "150123": ["Pachacámac", "sur"], "150124": ["Pucusana", "balnearios"],
+    "150125": ["Puente Piedra", "norte"], "150126": ["Punta Hermosa", "balnearios"], "150127": ["Punta Negra", "balnearios"], "150128": ["Rímac", "centro"],
+    "150129": ["San Bartolo", "balnearios"], "150130": ["San Borja", "centro"], "150131": ["San Isidro", "centro"], "150132": ["San Juan de Lurigancho", "este"],
+    "150133": ["San Juan de Miraflores", "sur"], "150134": ["San Luis", "centro"], "150135": ["San Martín de Porres", "norte"], "150136": ["San Miguel", "centro"],
+    "150137": ["Santa Anita", "este"], "150138": ["Santa María del Mar", "balnearios"], "150139": ["Santa Rosa", "norte"], "150140": ["Santiago de Surco", "centro"],
+    "150141": ["Surquillo", "centro"], "150142": ["Villa El Salvador", "sur"], "150143": ["Villa María del Triunfo", "sur"],
+    "070101": ["Callao", "callao"], "070102": ["Bellavista", "callao"], "070103": ["Carmen de la Legua Reynoso", "callao"], "070104": ["La Perla", "callao"],
+    "070105": ["La Punta", "callao"], "070106": ["Ventanilla", "callao"], "070107": ["Mi Perú", "callao"]
 };
-const WHERE_LN = `UBIGEO IN (${Object.keys(LIMA_NORTE).map(u => `'${u}'`).join(",")})`;
+const ZONES = {
+    todo:       { label: "Lima Metropolitana + Callao", short: "Lima + Callao", groups: ["norte", "centro", "este", "sur", "balnearios", "callao"] },
+    lima:       { label: "Lima Metropolitana", short: "Lima Metropolitana", groups: ["norte", "centro", "este", "sur", "balnearios"] },
+    norte:      { label: "Lima Norte", short: "Lima Norte", groups: ["norte"] },
+    centro:     { label: "Lima Centro", short: "Lima Centro", groups: ["centro"] },
+    este:       { label: "Lima Este", short: "Lima Este", groups: ["este"] },
+    sur:        { label: "Lima Sur", short: "Lima Sur", groups: ["sur"] },
+    balnearios: { label: "Lima Balnearios del Sur", short: "Balnearios del Sur", groups: ["balnearios"] },
+    callao:     { label: "Callao", short: "Callao", groups: ["callao"] }
+};
+const ZONE_ORDER = ["todo", "lima", "norte", "centro", "este", "sur", "balnearios", "callao"];
+const POLY_AUTO_MAX = Infinity;  // los resultados se dibujan siempre sobre los polígonos de las manzanas (encargo); el usuario puede volver a puntos
+// El ámbito se lee de la dirección (?zona=...). Sin parámetro, la app pregunta antes de cargar.
+const ZONE_PARAM = new URLSearchParams(location.search).get("zona");
+let ZONE_KEY = ZONES[ZONE_PARAM] ? ZONE_PARAM : null;
+let ZONE = null, ZONE_UBIGEOS = [], ZONE_NAMES = {}, WHERE_LN = "1=0";
+function setZone(key) {
+    ZONE_KEY = key; ZONE = ZONES[key];
+    ZONE_UBIGEOS = Object.keys(DISTRITOS).filter(u => ZONE.groups.includes(DISTRITOS[u][1]));
+    ZONE_NAMES = Object.fromEntries(ZONE_UBIGEOS.map(u => [u, DISTRITOS[u][0]]));
+    WHERE_LN = `UBIGEO IN (${ZONE_UBIGEOS.map(u => `'${u}'`).join(",")})`;
+    ROAD = key === "norte" ? ROAD_SOURCES.pdu_norte : ROAD_SOURCES.svm_a87;
+}
 
 const CLASES = [
     { id: "EXPRESA NACIONAL - REGIONAL", label: "Expresa nacional-regional", color: [127, 29, 29], width: 3.5 },
@@ -436,6 +550,16 @@ const CLASES = [
     { id: "COLECTORA DISTRITAL", label: "Colectora distrital", color: [100, 116, 139], width: 1.2 }
 ];
 const EXPRESAS = ["EXPRESA NACIONAL - REGIONAL", "EXPRESA METROPOLITANA", "SEMI EXPRESA"];
+// Las dos capas viales usan rótulos algo distintos; se agrupan en las 6 clases de la app.
+function canonClase(raw) {
+    const t = String(raw || "").toUpperCase();
+    if (t.includes("NACIONAL")) return "EXPRESA NACIONAL - REGIONAL";
+    if (t.includes("SEMI")) return "SEMI EXPRESA";
+    if (t.includes("EXPRESA")) return "EXPRESA METROPOLITANA";
+    if (t.includes("ARTERIAL")) return "ARTERIALES";
+    if (t.includes("INTERDISTRITAL")) return "COLECTORAS INTERDISTRITALES";
+    return "COLECTORA DISTRITAL";
+}
 const NO_EXPRESAS = CLASES.map(c => c.id).filter(c => !EXPRESAS.includes(c));
 
 const SCENARIOS = {
@@ -454,7 +578,7 @@ const PROJ_TYPES = {
 
 const NEAR_M = 1000;
 const PAGE = 2000;
-const COS0 = Math.cos(11.9 * Math.PI / 180);       // latitud media de Lima Norte
+const COS0 = Math.cos(12.05 * Math.PI / 180);      // latitud media de Lima (error < 1 % en todo el ámbito)
 const JCELL_M = 250, JRAD_M = 1000;                 // grilla para "empleos a ≤ 1 km"
 const JCELL = JCELL_M / COS0;                       // tamaño de celda en unidades Web Mercator
 const J_OFFSETS = (() => {
@@ -506,8 +630,8 @@ const D = {
     oid: null,               // OBJECTID de cada manzana en el servidor (clave para unir punto ↔ polígono)
     poly: null,              // anillos (rings) del polígono de cada manzana, en Web Mercator; se descargan en segundo plano
     polyCount: 0,
-    roads: [], districtNames: { ...LIMA_NORTE },
-    dAll: null,              // distancia (m) de cada manzana a cualquier vía del sistema propuesto
+    roads: [], districtNames: {},
+    dAll: null,              // distancia (m) de cada manzana a cualquier vía del Sistema Vial Metropolitano
     soil: null,              // registros de valor de suelo: {x, y, cos, jcx, jcy, price, dAll, jb}
     soilMedian: null,
     census: null,            // por manzana: {pop, dens, est, matched} (unión por IDMANZANA)
@@ -1271,14 +1395,18 @@ window.addEventListener("DOMContentLoaded", () => {
             labelingInfo: [{ labelExpressionInfo: { expression: "$feature.NOMBDIST" }, symbol: { type: "text", color: [51, 65, 85], haloColor: "white", haloSize: 1.5, font: { size: 10, weight: "bold" } } }],
             popupTemplate: { title: "{NOMBDIST}", content: "UBIGEO: {UBIGEO}" }
         });
-        const viasLayer = new FeatureLayer({
-            url: URL_VIAS, title: "Sistema vial propuesto", outFields: ["nombre", "clasif", "long_km"],
-            renderer: new UniqueValueRenderer({
-                field: "clasif", defaultSymbol: new SimpleLineSymbol({ color: [148, 163, 184, 0.8], width: 1 }),
-                uniqueValueInfos: CLASES.map(c => ({ value: c.id, label: c.label, symbol: new SimpleLineSymbol({ color: [...c.color, 0.9], width: c.width }) }))
-            }),
-            popupTemplate: { title: "{nombre}", content: [{ type: "fields", fieldInfos: [{ fieldName: "clasif", label: "Clasificación" }, { fieldName: "long_km", label: "Longitud (km)", format: { places: 2 } }] }] }
-        });
+        // La capa vial se crea al elegir la zona (depende de ella)
+        let viasLayer = null;
+        function makeViasLayer() {
+            return new FeatureLayer({
+                url: ROAD.url, title: ROAD.label, outFields: [ROAD.name, ROAD.clase, ROAD.len],
+                renderer: new UniqueValueRenderer({
+                    field: ROAD.clase, defaultSymbol: new SimpleLineSymbol({ color: [148, 163, 184, 0.8], width: 1 }),
+                    uniqueValueInfos: ROAD.raws.map(raw => { const c = CLASES.find(k => k.id === canonClase(raw)); return { value: raw, label: c.label, symbol: new SimpleLineSymbol({ color: [...c.color, 0.9], width: c.width }) }; })
+                }),
+                popupTemplate: { title: `{${ROAD.name}}`, content: [{ type: "fields", fieldInfos: [{ fieldName: ROAD.clase, label: "Clasificación" }, { fieldName: ROAD.len, label: "Longitud (km)", format: { places: 2 } }] }] }
+            });
+        }
         const manzanasLayer = new FeatureLayer({
             url: URL_MANZANAS, definitionExpression: WHERE_LN, title: "Manzanas", outFields: ["IDMANZANA"], minScale: 30000, popupEnabled: false,
             renderer: new SimpleRenderer({ symbol: new SimpleFillSymbol({ color: [255, 255, 255, 0.01], outline: { color: [100, 116, 139, 0.45], width: 0.4 } }) })
@@ -1297,7 +1425,7 @@ window.addEventListener("DOMContentLoaded", () => {
         const sketchLayer = new GraphicsLayer({ title: "Dibujo" });
         const huellaLayer = new GraphicsLayer({ title: "Mancha urbana histórica", visible: false });
         let resultLayer = null, expLayer = null, zonesLayer = null;
-        map.addMany([huellaLayer, manzanasLayer, sueloLayer, viasLayer, limitesLayer, projLayer, sketchLayer]);
+        map.addMany([huellaLayer, manzanasLayer, sueloLayer, limitesLayer, projLayer, sketchLayer]);
         const HUELLA_COLORS = { 1985: [30, 41, 59], 2003: [100, 116, 139], 2013: [203, 213, 225] };
 
         // ---------- Controles de capas ----------
@@ -1305,7 +1433,7 @@ window.addEventListener("DOMContentLoaded", () => {
             { key: "result", label: "Resultado del modelo", get: () => resultLayer, opacity: 0.9, checked: true },
             { key: "proj", label: "Proyectos", get: () => projLayer, opacity: 1, checked: true },
             { key: "manz", label: "Manzanas (al acercarse)", get: () => manzanasLayer, opacity: 1, checked: true },
-            { key: "vias", label: "Sistema vial propuesto", get: () => viasLayer, opacity: 0.9, checked: true },
+            { key: "vias", label: "Sistema vial", get: () => viasLayer, opacity: 0.9, checked: true },
             { key: "lim", label: "Límites distritales", get: () => limitesLayer, opacity: 1, checked: true },
             { key: "suelo", label: "Valor de suelo observado (puntos)", get: () => sueloLayer, opacity: 1, checked: false },
             { key: "huella", label: "Mancha urbana 1985 / 2003 / 2013", get: () => huellaLayer, opacity: 0.55, checked: false }
@@ -1326,9 +1454,11 @@ window.addEventListener("DOMContentLoaded", () => {
         $("basemap-select").addEventListener("change", e => map.basemap = e.target.value);
 
         function updateRoadFilter(P) {
+            if (!viasLayer) return;
             if (!P.clases.length) { viasLayer.definitionExpression = null; viasLayer.opacity = 0.25; return; }
             viasLayer.opacity = layerState.vias.opacity;
-            viasLayer.definitionExpression = `clasif IN (${P.clases.map(c => `'${c.replace(/'/g, "''")}'`).join(",")})`;
+            const raws = ROAD.raws.filter(r => P.clases.includes(canonClase(r)));
+            viasLayer.definitionExpression = raws.length ? `${ROAD.clase} IN (${raws.map(c => `'${c.replace(/'/g, "''")}'`).join(",")})` : "1=0";
         }
 
         // ---------- Dibujo de proyectos ----------
@@ -1453,13 +1583,13 @@ window.addEventListener("DOMContentLoaded", () => {
         Chart.defaults.color = "#64748b";
         const chartDistrict = new Chart($("chart-district"), {
             type: "bar",
-            data: { labels: [], datasets: [{ label: "Referencia", data: [], backgroundColor: "#cbd5e1", borderRadius: 4 }, { label: "Escenario", data: [], backgroundColor: "#e11d48", borderRadius: 4 }] },
+            data: { labels: [], datasets: [{ label: "Referencia", data: [], backgroundColor: "#cbd5e1", borderRadius: 4 }, { label: "Escenario", data: [], backgroundColor: "#1B5D6C", borderRadius: 4 }] },
             options: { responsive: true, maintainAspectRatio: false, indexAxis: "y", plugins: { legend: { position: "bottom", labels: { boxWidth: 10 } } }, scales: { x: { ticks: { callback: v => fmt(v) } }, y: { grid: { display: false } } } }
         });
         const chartGrowth = new Chart($("chart-growth"), {
             type: "line",
             data: { labels: [], datasets: [
-                { label: "Crecimiento (g)", data: [], borderColor: "#e11d48", backgroundColor: "rgba(225,29,72,0.08)", fill: true, tension: 0.2, pointRadius: 1.5 },
+                { label: "Crecimiento (g)", data: [], borderColor: "#1B5D6C", backgroundColor: "rgba(27,93,108,0.08)", fill: true, tension: 0.2, pointRadius: 1.5 },
                 { label: "+ empleos de proyectos", data: [], borderColor: "#7c3aed", borderDash: [4, 3], fill: false, tension: 0.2, pointRadius: 0 }] },
             options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: "bottom", labels: { boxWidth: 10 } } }, scales: { y: { ticks: { callback: v => fmt(v) } } } }
         });
@@ -1545,7 +1675,7 @@ window.addEventListener("DOMContentLoaded", () => {
             const sq = c => `<span class="inline-block w-3 h-3" style="background:rgb(${c.join(",")})"></span>`;
             $("legend-body").innerHTML = `<p>Viajes atraídos <b>adicionales</b> al ${R.P.year} frente a hoy, por zona de tránsito (haz clic en una zona).</p>`
                 + cols.map((c, i) => `<div class="flex items-center gap-2">${sq(c)} ${i === 0 ? `hasta ${fmt(qs[0])}` : i === 4 ? `más de ${fmt(qs[3])}` : `${fmt(qs[i - 1])} a ${fmt(qs[i])}`}</div>`).join("")
-                + `<p class="text-slate-400">Solo ${T.n} zonas ATU con datos en Lima Norte. Unidades del modelo ATU.</p>`;
+                + `<p class="text-slate-400">Solo ${T.n} zonas ATU con datos en ${ZONE.short}. Unidades del modelo ATU.</p>`;
         }
         // ¿Se dibuja por polígono de manzana o por punto (centroide)?
         const asPoly = () => !!(D.poly && $("draw-as").value === "poly");
@@ -1613,7 +1743,7 @@ window.addEventListener("DOMContentLoaded", () => {
                 return showExpansion(mode);
             }
             if (isTrips) {
-                if (!R.trips) { $("legend-body").innerHTML = "<p>El modelo de viajes no está disponible (faltan zonas ATU con datos en Lima Norte).</p>"; return; }
+                if (!R.trips) { $("legend-body").innerHTML = `<p>El modelo de viajes no está disponible (faltan zonas ATU con datos en ${ZONE.short}).</p>`; return; }
                 if (!R.trips.reliable) {
                     if (zonesLayer) zonesLayer.visible = false;
                     $("legend-body").innerHTML = "<p>No se muestran proyecciones de viajes: con estos datos la relación empleo–viajes no es confiable (ver tarjeta 3 en Indicadores).</p>";
@@ -1727,14 +1857,14 @@ window.addEventListener("DOMContentLoaded", () => {
                 if (ep && ep.base) { const b = new Set(ep.base.chosen); moved = ep.chosen.filter(i => !b.has(i)).length; }
                 const coefs = X.FEAT_NAMES.map((nm, k) => `<tr><td>${nm}</td><td class="text-right font-mono">${fmt(X.final.b[k + 1], 2)}</td></tr>`).join("");
                 $("k-exp").innerHTML = `
-                    <div>Entrenado con 1985→2003 y probado prediciendo 2003→2013 (${fmt(v.nNew)} ha que realmente se urbanizaron en Lima Norte).</div>
+                    <div>Entrenado con 1985→2003 y probado prediciendo 2003→2013 (${fmt(v.nNew)} ha que realmente se urbanizaron en ${ZONE.short}).</div>
                     <div class="grid grid-cols-2 gap-1 mt-1">
                         <div><span class="text-slate-500 block">Aciertos en las ${fmt(v.nNew)} ha más probables</span><b class="text-sky-800 text-sm">${fmt(v.hitModel * 100, 1)}%</b> <span class="text-slate-400">regla simple ${fmt(v.hitNull * 100, 1)}%</span></div>
                         <div><span class="text-slate-500 block">AUC (0.5 = azar · 1 = perfecto)</span><b class="text-sky-800 text-sm">${fmt(v.aucModel, 3)}</b> <span class="text-slate-400">regla simple ${fmt(v.aucNull, 3)}</span></div>
                     </div>
                     ${verdict(v.hitModel > v.hitNull + 0.01, "El modelo supera a la regla simple (urbanizar lo más cercano a la ciudad).", "El modelo no supera claramente a la regla simple: úsese con cautela.")}
                     <div class="mt-1">Proyección: <b>${fmt(ep ? ep.n : 0)} ha</b> nuevas entre 2013 y ${R.P.year} (ritmo observado ${fmt(X.ratePerYear)} ha/año).
-                        Mancha urbana en Lima Norte: ${fmt(X.urbanHa[0])} ha (1985) → ${fmt(X.urbanHa[1])} (2003) → ${fmt(X.urbanHa[2])} (2013).</div>
+                        Mancha urbana en ${ZONE.short}: ${fmt(X.urbanHa[0])} ha (1985) → ${fmt(X.urbanHa[1])} (2003) → ${fmt(X.urbanHa[2])} (2013).</div>
                     ${ep && ep.base ? `<div class="text-violet-700">Las vías nuevas dibujadas cambian la ubicación de <b>${fmt(moved)} ha</b> de la expansión proyectada.</div>` : ""}
                     <details class="mt-1"><summary class="cursor-pointer text-slate-500">Coeficientes estandarizados (signo: + favorece urbanizar)</summary>
                         <table class="w-full">${coefs}</table></details>`;
@@ -1756,7 +1886,7 @@ window.addEventListener("DOMContentLoaded", () => {
             if (R.trips) {
                 const T = R.trips;
                 $("k-trips").innerHTML = `
-                    <div>Calibrado con ${T.n} zonas de tránsito ATU en Lima Norte: cada empleo atrae ≈ <b>${fmt(T.perJob, 2)}</b> viajes${T.useAct ? "; además, por cada hectárea de actividad:" : "."}</div>
+                    <div>Calibrado con ${T.n} zonas de tránsito ATU en ${ZONE.short}: cada empleo atrae ≈ <b>${fmt(T.perJob, 2)}</b> viajes${T.useAct ? "; además, por cada hectárea de actividad:" : "."}</div>
                     ${T.useAct ? `<div class="grid grid-cols-2 gap-x-2">${ACT_GROUPS.map(g => `<div>· ${ACT_LABEL[g]}: <b>${T.actCoef[g] >= 0 ? "+" : ""}${fmt(T.actCoef[g])}</b> viajes</div>`).join("")}</div>` : ""}
                     <div class="grid grid-cols-2 gap-1 mt-1">
                         <div><span class="text-slate-500 block">Error típico (zona fuera)</span><b class="text-sky-800 text-sm">±${fmt(T.cv.mdape * 100, 0)}%</b></div>
@@ -1803,7 +1933,8 @@ window.addEventListener("DOMContentLoaded", () => {
             $("k-blocks").textContent = `${fmt(R.nUsed)} manzanas`;
             $("k-blocks-sub").textContent = `${fmt(R.nExcl)} excluidas por EMP_TOTAL > ${fmt(P.thr)} · ${fmt(R.nNull)} sin dato (= 0)`;
 
-            const names = Object.keys(D.districtNames).sort((a, b) => R.byDist[b].s1 - R.byDist[a].s1);
+            const names = Object.keys(R.byDist).filter(u => R.byDist[u].base > 0 || R.byDist[u].s1 > 0).sort((a, b) => R.byDist[b].s1 - R.byDist[a].s1);
+            $("chart-district").parentElement.style.height = `${Math.max(176, 22 * names.length + 50)}px`;   // más distritos → gráfico más alto
             chartDistrict.data.labels = names.map(u => D.districtNames[u]);
             chartDistrict.data.datasets[0].label = `Referencia (${R.refLabel})`;
             chartDistrict.data.datasets[0].data = names.map(u => Math.round(R.byDist[u].ref));
@@ -1984,7 +2115,7 @@ window.addEventListener("DOMContentLoaded", () => {
                 D.poly = poly; D.polyCount = c;
                 opt.textContent = `Manzanas (polígonos) · ${fmt(c)}`;
                 opt.disabled = false;
-                if ($("draw-as").value === "point" && !drawAsTouched) $("draw-as").value = "poly";
+                if ($("draw-as").value === "point" && !drawAsTouched && D.n <= POLY_AUTO_MAX) $("draw-as").value = "poly";
                 $("btn-geojson").disabled = !R;
                 if (R && $("draw-as").value === "poly") await buildResultLayer();
             } catch (e) {
@@ -1999,21 +2130,25 @@ window.addEventListener("DOMContentLoaded", () => {
         // ---------- Carga inicial ----------
         async function loadData() {
             try {
+                D.districtNames = { ...ZONE_NAMES };
                 loading("Descargando nombres de distritos...", 2);
                 try {
                     const lim = await queryREST(URL_LIMITES, { where: WHERE_LN, outFields: "UBIGEO,NOMBDIST", returnGeometry: false });
                     (lim.features || []).forEach(f => { const nm = f.attributes.NOMBDIST; if (nm && !D.districtNames[f.attributes.UBIGEO]) D.districtNames[f.attributes.UBIGEO] = nm; });
                 } catch (e) { console.warn("Nombres de distrito no disponibles.", e); }
 
-                loading("Descargando el sistema vial propuesto...", 5);
-                const vias = await fetchAll(URL_VIAS, { where: "1=1", outFields: "nombre,clasif", returnGeometry: true, outSR: 102100 }, "OBJECTID_1");
-                D.roads = vias.features.filter(f => f.geometry && f.geometry.paths).map(f => ({ name: f.attributes.nombre || "(sin nombre)", clase: f.attributes.clasif, paths: f.geometry.paths }));
+                loading(`Descargando ${ROAD.label}...`, 5);
+                const vias = await fetchAll(ROAD.url, { where: "1=1", outFields: `${ROAD.name},${ROAD.clase}`, returnGeometry: true, outSR: 102100 }, ROAD.oid);
+                D.roads = vias.features.filter(f => f.geometry && f.geometry.paths).map(f => ({ name: f.attributes[ROAD.name] || "(sin nombre)", clase: canonClase(f.attributes[ROAD.clase]), paths: f.geometry.paths }));
 
-                loading("Descargando manzanas de Lima Norte...", 8);
+                loading(`Descargando manzanas de ${ZONE.short}...`, 8);
                 const mz = await fetchAll(URL_MANZANAS, { where: WHERE_LN, outFields: "OBJECTID,IDMANZANA,UBIGEO,EMP_TOTAL", returnGeometry: false, returnCentroid: true, outSR: 102100 },
                     "OBJECTID", (got, total) => loading(`Descargando manzanas: ${fmt(got)} de ${fmt(total)}`, 8 + 72 * got / total));
                 const feats = mz.features.filter(f => f.centroid);
                 const n = feats.length;
+                if (!n) throw new Error(ZONE_KEY === "callao"
+                    ? "la capa MANZANAS_CENEC del encargo no incluye el Callao (solo tiene los 43 distritos de Lima), así que aquí no hay empleos que modelar. Elige «Lima Metropolitana + Callao» en el selector Zona para ver el Callao junto con Lima"
+                    : `la capa MANZANAS_CENEC no tiene manzanas para ${ZONE.label}`);
                 D.n = n;
                 D.X = new Float64Array(n); D.Y = new Float64Array(n); D.cosLat = new Float64Array(n); D.raw = new Float64Array(n);
                 D.jcx = new Int32Array(n); D.jcy = new Int32Array(n); D.oid = new Float64Array(n);
@@ -2027,6 +2162,16 @@ window.addEventListener("DOMContentLoaded", () => {
                     D.raw[j] = (a.EMP_TOTAL === null || a.EMP_TOTAL === undefined) ? NaN : Number(a.EMP_TOTAL);
                     indexById.set(a.IDMANZANA, j);
                 });
+                // Solo las vías a menos de 5 km del ámbito (acelera los cálculos cuando se carga una sola zona)
+                {
+                    let bx0 = Infinity, by0 = Infinity, bx1 = -Infinity, by1 = -Infinity;
+                    for (let j = 0; j < n; j++) { if (D.X[j] < bx0) bx0 = D.X[j]; if (D.X[j] > bx1) bx1 = D.X[j]; if (D.Y[j] < by0) by0 = D.Y[j]; if (D.Y[j] > by1) by1 = D.Y[j]; }
+                    const m = 5000 / COS0;
+                    D.roads = D.roads.filter(r => r.paths.some(path => path.some(([x, y]) => x > bx0 - m && x < bx1 + m && y > by0 - m && y < by1 + m)));
+                }
+                // Índice de manzanas por celda de 250 m (búsquedas de vecino cercano rápidas)
+                D.cellIndex = new globalThis.Map();
+                for (let j = 0; j < n; j++) { const k = D.jcx[j] + "," + D.jcy[j]; let a = D.cellIndex.get(k); if (!a) D.cellIndex.set(k, a = []); a.push(j); }
                 loading("Calculando distancias a las vías...", 82);
                 await new Promise(r => setTimeout(r, 20));
                 D.dAll = distancesTo(D.roads, D.X, D.Y, D.cosLat, null).dist;
@@ -2049,7 +2194,7 @@ window.addEventListener("DOMContentLoaded", () => {
                 // ---- Censo por manzana (unión por IDMANZANA) ----
                 loading("Descargando datos de población por manzana...", 90);
                 try {
-                    const c = await fetchAll(URL_CENSO, { where: `UBIGEO IN (${Object.keys(LIMA_NORTE).join(",")})`, outFields: "ObjectId,IDMANZANA,POBLACION,DENSPOB,COD_EST_SO", returnGeometry: false }, "ObjectId");
+                    const c = await fetchAll(URL_CENSO, { where: `UBIGEO IN (${ZONE_UBIGEOS.map(u => +u).join(",")})`, outFields: "ObjectId,IDMANZANA,POBLACION,DENSPOB,COD_EST_SO", returnGeometry: false }, "ObjectId");
                     // Código de manzana INEI: UBIGEO(6) + zona(3) + sufijo zona(2) + manzana(3) + sufijo manzana(1).
                     // El sufijo final difiere entre capas (CENEC usa letras, el censo números), así que:
                     //   1) unión exacta por el código completo; 2) si no hay, unión por los primeros 14 caracteres,
@@ -2089,18 +2234,22 @@ window.addEventListener("DOMContentLoaded", () => {
                 } catch (e) { console.warn("Censo no disponible", e); D.census = null; }
                 // Manzana más cercana a cada registro de valor de suelo (para sus variables de censo y distrito)
                 if (D.soil) {
-                    const all = new Uint8Array(n).fill(1);
                     D.soil.forEach(s => {
-                        const j = nearestBlock(s.x, s.y, all);
-                        s.jb = j >= 0 && Math.hypot(D.X[j] - s.x, D.Y[j] - s.y) * s.cos <= 500 ? j : -1;
+                        // manzana más cercana a ≤ 500 m, buscando solo en las celdas vecinas de 250 m
+                        const cx = Math.floor(s.x / JCELL), cy = Math.floor(s.y / JCELL);
+                        let best = Infinity, bj = -1;
+                        for (let dx = -3; dx <= 3; dx++) for (let dy = -3; dy <= 3; dy++) {
+                            const a = D.cellIndex.get((cx + dx) + "," + (cy + dy)); if (!a) continue;
+                            for (const j of a) { const d = (D.X[j] - s.x) ** 2 + (D.Y[j] - s.y) ** 2; if (d < best) { best = d; bj = j; } }
+                        }
+                        s.jb = bj >= 0 && Math.sqrt(best) * s.cos <= 500 ? bj : -1;
                     });
                 }
 
                 // ---- Zonas de tránsito ATU (viajes atraídos) ----
                 loading("Descargando zonas de viajes (ATU)...", 92);
                 try {
-                    const zw = `NOMBDIST IN (${ZONAS_LN.map(s => `'${s}'`).join(",")})`;
-                    const z = await fetchAll(URL_ZONAS, { where: zw, outFields: "OBJECTID,COD_VIAJE,NOMBDIST,V_PUB_ATR,V_PRI_ATR,V_PUB_GEN,V_PRI_GEN", returnGeometry: true, outSR: 102100, maxAllowableOffset: 5 }, "OBJECTID");
+                    const z = await fetchAll(URL_ZONAS, { where: "1=1", outFields: "OBJECTID,COD_VIAJE,NOMBDIST,V_PUB_ATR,V_PRI_ATR,V_PUB_GEN,V_PRI_GEN", returnGeometry: true, outSR: 102100, maxAllowableOffset: 5 }, "OBJECTID");
                     D.zones = z.features.filter(f => f.geometry && f.geometry.rings).map(f => {
                         const a = f.attributes;
                         return { name: a.NOMBDIST, cod: a.COD_VIAJE, atr: (a.V_PUB_ATR || 0) + (a.V_PRI_ATR || 0), gen: (a.V_PUB_GEN || 0) + (a.V_PRI_GEN || 0), rings: f.geometry.rings, bbox: ringsBBox(f.geometry.rings) };
@@ -2114,11 +2263,18 @@ window.addEventListener("DOMContentLoaded", () => {
                             if (pointInRings(x, y, D.zones[k].rings)) { D.blockZone[j] = k; break; }
                         }
                     }
+                    // Se conservan solo las zonas ATU que contienen manzanas del ámbito elegido
+                    const keep = new Int32Array(D.zones.length).fill(-1), cnt = new Int32Array(D.zones.length);
+                    for (let j = 0; j < n; j++) if (D.blockZone[j] >= 0) cnt[D.blockZone[j]]++;
+                    const kept = []; D.zones.forEach((zz, k) => { if (cnt[k] > 0) { keep[k] = kept.length; kept.push(zz); } });
+                    for (let j = 0; j < n; j++) if (D.blockZone[j] >= 0) D.blockZone[j] = keep[D.blockZone[j]];
+                    D.zones = kept;
                     if (!D.zones.length) D.zonesError = "no hay zonas ATU en estos distritos";
                 } catch (e) { console.warn("Zonas ATU no disponibles", e); D.zones = null; D.zonesError = e.message; }
 
                 // ---- Actividades económicas: hectáreas por tipo dentro de cada zona ATU ----
-                if (D.zones && D.zones.length) {
+                // La capa de actividades económicas solo cubre Lima Norte: en otros ámbitos sesgaría el modelo, así que no se usa.
+                if (D.zones && D.zones.length && ZONE_KEY === "norte") {
                     loading("Descargando actividades económicas...", 93);
                     try {
                         const a = await fetchAll(URL_ACT, { where: "1=1", outFields: "objectid,tipo_ae,area_has", returnGeometry: true, outSR: 102100, maxAllowableOffset: 10 }, "objectid");
@@ -2168,7 +2324,7 @@ window.addEventListener("DOMContentLoaded", () => {
                     const dr = distancesTo(D.roads, cx, cy, cc, null).dist, dRoadCells = new Float64Array(Rr.n);
                     idx.forEach((i, t) => dRoadCells[i] = dr[t]);
                     D.exp = buildExpansion(mask, U, Rr, dRoadCells);
-                    if (!(D.exp.val.nNew > 0)) throw new Error("no hubo celdas nuevas 2003→2013 en Lima Norte");
+                    if (!(D.exp.val.nNew > 0)) throw new Error(`no hubo celdas nuevas 2003→2013 en ${ZONE.short}`);
                 } catch (e) { console.warn("Expansión urbana no disponible", e); D.exp = null; D.expError = e.message; }
 
                 loading("Calculando...", 98);
@@ -2181,12 +2337,42 @@ window.addEventListener("DOMContentLoaded", () => {
                 loadBlockPolygons();   // en segundo plano: la app ya es usable con puntos mientras llegan los polígonos
             } catch (err) {
                 console.error(err);
-                loading(`No se pudieron cargar los datos: ${err.message}. Revisa tu conexión a internet y recarga la página.`, 0);
+                loading(`No se pudieron cargar los datos: ${err.message}.${/CENEC/.test(err.message) ? "" : " Revisa tu conexión a internet y recarga la página."}`, 0);
                 $("loading").querySelector(".fa-spin").className = "fa-solid fa-triangle-exclamation text-red-600 text-2xl";
                 status("Error de datos", "error");
             }
         }
-        view.when(loadData);
+        // ---------- Ámbito de estudio ----------
+        function zoneHref(key) { const u = new URL(location.href); u.searchParams.set("zona", key); return u.toString(); }
+        $("zone-select").innerHTML = ZONE_ORDER.map(k => `<option value="${k}">${ZONES[k].label}</option>`).join("");
+        $("zone-select").addEventListener("change", e => { location.href = zoneHref(e.target.value); });
+        const ZONE_HINT = { todo: "50 distritos · la carga más pesada", lima: "43 distritos", norte: "8 distritos", centro: "17 distritos",
+            este: "7 distritos", sur: "6 distritos", balnearios: "5 distritos", callao: "7 distritos · ⚠️ la capa CENEC no tiene manzanas del Callao" };
+        function startZone(key) {
+            setZone(key);
+            history.replaceState(null, "", zoneHref(key));
+            $("zone-select").value = key;
+            $("zone-title").textContent = ZONE.label;
+            document.title = `Prototipo LUTI · ${ZONE.label}`;
+            [limitesLayer, manzanasLayer, sueloLayer].forEach(l => l.definitionExpression = WHERE_LN);
+            viasLayer = makeViasLayer();
+            viasLayer.visible = layerState.vias.visible; viasLayer.opacity = layerState.vias.opacity;
+            map.add(viasLayer, Math.max(0, map.layers.indexOf(limitesLayer)));
+            $("zone-chooser").classList.add("hidden");
+            $("loading").classList.remove("hidden");
+            loadData();
+        }
+        view.when(() => {
+            if (ZONE_KEY) { startZone(ZONE_KEY); return; }
+            $("loading").classList.add("hidden");
+            $("zone-buttons").innerHTML = ZONE_ORDER.map(k => `
+                <button data-zone="${k}" class="text-left border ${k === "todo" ? "border-rose-300 bg-rose-50" : "border-slate-200 bg-white"} hover:border-rose-400 hover:bg-rose-50 rounded-xl px-3 py-2">
+                    <div class="text-sm font-semibold text-slate-800">${ZONES[k].label}</div>
+                    <div class="text-[11px] text-slate-500">${ZONE_HINT[k]}</div>
+                </button>`).join("");
+            $("zone-buttons").querySelectorAll("button").forEach(b => b.addEventListener("click", () => startZone(b.dataset.zone)));
+            $("zone-chooser").classList.remove("hidden");
+        });
     });
 });
 </script>
